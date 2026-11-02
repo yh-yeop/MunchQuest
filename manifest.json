@@ -1,0 +1,17 @@
+{
+  "name": "냠냠 원정대",
+  "short_name": "냠냠 원정대",
+  "description": "브라우저에서 같이 사냥하는 도트 MMORPG (베타 플레이테스트).",
+  "lang": "ko",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#1d1c28",
+  "theme_color": "#2b2a3a",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
