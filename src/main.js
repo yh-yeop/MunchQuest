@@ -8,6 +8,8 @@ import { localPair } from './net/local.js';
 import { withLatency } from './net/latency.js';
 import { listenTabs, connectTabs } from './net/tabs.js';
 import { listenPeer, connectPeer } from './net/peer.js';
+import { connectWS } from './net/ws.js';
+import { SERVER_URL } from './config.js';
 
 const $ = (id) => document.getElementById(id);
 const NAME_KEY = 'munch:name';
@@ -18,6 +20,10 @@ const store = {
 const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const newCode = () => Array.from({ length: 4 }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join('');
 const LAG_PRESETS = [0, 50, 150, 300];
+const params = new URLSearchParams(location.search);
+// 시험용 서버 주소는 ws:// · wss:// 만 받는다
+const serverFromUrl = /^wss?:\/\/[\w.:-]+\/?$/.test(params.get('server') || '') ? params.get('server') : '';
+const serverUrl = serverFromUrl || SERVER_URL;
 
 const renderer = createRenderer($('cv'), buildHub());
 let session = null;   // { kind, client, server?, bots, closers, room }
@@ -107,6 +113,15 @@ function hostSession(kind, room) {
 async function joinSession(room) {
   showMsg(`${room} 방 찾는 중…`);
   let conn = null, net = '';
+  if (serverUrl) {
+    // 중계 서버가 있으면 방 만들기 · 참가 모두 서버로. 방은 서버에 있으니 누가 나가도 남는다
+    try { conn = await connectWS(serverUrl, room); net = '서버 연결 (학교 · 회사망 OK)'; }
+    catch (e) { showMsg(`서버에 연결하지 못했어요 (${e.message}). 잠시 뒤 다시 해 보세요.`); return; }
+    const client = new Client(withLatency(conn, () => fakeLag), { name: myName(), onEvent: clientEvents });
+    session = { kind: 'online', room, client, bots: [], closers: [() => conn.close()], net };
+    startPlay();
+    return;
+  }
   try { conn = await connectTabs(room); net = '같은 브라우저 탭으로 연결'; }
   catch (e) {
     try { conn = await connectPeer(room); net = '인터넷(WebRTC)으로 연결'; }
@@ -120,8 +135,15 @@ async function joinSession(room) {
 function startPlay() {
   $('title').hidden = true;
   $('hud').hidden = false;
-  history.replaceState(null, '', session.room ? `?room=${session.room}` : location.pathname);
+  showMsg('');
+  history.replaceState(null, '', session.room ? `?${linkParams(session.room)}` : location.pathname);
   updateHud();
+}
+// 초대 링크: 방 코드 (+ 시험용 서버를 주소로 받았으면 그것도)
+function linkParams(room) {
+  const p = new URLSearchParams({ room });
+  if (serverFromUrl) p.set('server', serverFromUrl);
+  return p.toString();
 }
 
 function leave(reason) {
@@ -200,7 +222,7 @@ function updateDebug() {
 }
 
 // ---------- 루프 ----------
-let last = performance.now(), acc = 0, pingT = 0, dbgT = 0;
+let last = performance.now(), acc = 0, pingT = 0, dbgT = 0, flushT = 0;
 function frame(now) {
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
@@ -213,8 +235,13 @@ function frame(now) {
       c.input(dx, dy);
       for (const b of session.bots) b.step();
     }
-    c.flush();
-    for (const b of session.bots) b.client.flush();
+    // 입력은 20Hz로 묶어 보낸다 (예측은 그대로라 손맛은 같고, 서버 요청 수는 1/3)
+    flushT += dt;
+    if (flushT >= 0.05) {
+      flushT = 0;
+      c.flush();
+      for (const b of session.bots) b.client.flush();
+    }
     pingT += dt;
     if (pingT > 1) { pingT = 0; c.ping(); for (const b of session.bots) b.client.ping(); }
     if (c.lastSnap && performance.now() - c.lastSnap > 5000) leave('방장과 연결이 끊겼어요');
@@ -230,9 +257,13 @@ function frame(now) {
 // ---------- 시작 화면 ----------
 $('name').value = store.get(NAME_KEY) || '';
 $('name').addEventListener('change', () => store.set(NAME_KEY, myName()));
-const params = new URLSearchParams(location.search);
 if (params.get('room')) $('code').value = params.get('room').toUpperCase().slice(0, 4);
-$('btnHost').addEventListener('click', () => { store.set(NAME_KEY, myName()); hostSession('host', newCode()); });
+$('mode').textContent = serverUrl ? '서버 연결 · 학교 · 회사망에서도 OK' : '서버 없음 · 방장 브라우저가 서버 (학교망에선 막힐 수 있음)';
+$('btnHost').addEventListener('click', () => {
+  store.set(NAME_KEY, myName());
+  if (serverUrl) joinSession(newCode());
+  else hostSession('host', newCode());
+});
 $('btnSolo').addEventListener('click', () => { store.set(NAME_KEY, myName()); hostSession('solo', ''); });
 $('joinForm').addEventListener('submit', (e) => {
   e.preventDefault();
@@ -242,7 +273,7 @@ $('joinForm').addEventListener('submit', (e) => {
   joinSession(code);
 });
 $('copy').addEventListener('click', async () => {
-  const url = `${location.origin}${location.pathname}?room=${session.room}`;
+  const url = `${location.origin}${location.pathname}?${linkParams(session.room)}`;
   try { await navigator.clipboard.writeText(url); $('copy').textContent = '복사됨'; }
   catch (e) { prompt('이 주소를 친구에게 보내세요', url); }
   setTimeout(() => { $('copy').textContent = '초대 링크 복사'; }, 1500);

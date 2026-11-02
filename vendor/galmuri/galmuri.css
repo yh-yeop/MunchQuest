@@ -1,0 +1,23 @@
+/**
+ * Copyright (c) 2019–2025 Lee Minseo (quiple@quiple.dev),
+ * with Reserved Font Name "Galmuri".
+ *
+ * This font software is licensed under the SIL Open Font License, Version 1.1.
+ * This license is available with a FAQ at: https://scripts.sil.org/OFL  (원문: ofl.md)
+ *
+ * galmuri@2.40.3 에서 쓰는 두 굵기만 가져옴 (학교 필터가 CDN을 막아도 되게 저장소에 둠).
+ */
+@font-face {
+  font-family: Galmuri14;
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Galmuri14 Regular'), url('./Galmuri14.woff2') format('woff2');
+}
+@font-face {
+  font-family: Galmuri11;
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Galmuri11 Regular'), url('./Galmuri11.woff2') format('woff2');
+}

@@ -1,0 +1,14 @@
+# 냠냠 원정대 중계 · 권위 서버 (Cloudflare Workers + Durable Objects)
+# 방 코드 하나 = Durable Object 하나. 그 안에서 ../src/server.js 를 그대로 돌린다.
+name = "munchquest"
+main = "src/index.js"
+compatibility_date = "2025-06-01"
+
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "Room"
+
+# 무료 요금제는 SQLite 기반 Durable Object 만 쓸 수 있다
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Room"]

@@ -1,15 +1,22 @@
 // 인터넷 너머 (WebRTC, PeerJS 공개 중개 서버로 연결만 맺고 데이터는 직접 주고받음).
-// 방장 브라우저가 서버 역할. 일부 회사 · 학교망처럼 직접 연결이 막힌 곳에서는 실패할 수 있다.
-const PEER_URL = 'https://cdn.jsdelivr.net/npm/peerjs@1.5.4/+esm';
+// 중계 서버(config.js SERVER_URL)가 없을 때만 쓰는 대안. 학교 · 회사망처럼 기기끼리 직접 연결이 막힌 곳에서는 실패한다.
+// 라이브러리는 저장소에 둔 peerjs@1.5.4 묶음 파일 (CDN이 막혀도 되게).
+const PEER_SRC = new URL('../../vendor/peerjs.min.js', import.meta.url).href;
 const peerId = (room) => `munchquest-m0-${room}`;
-let PeerClass = null;
+let loading = null;
 
-async function load() {
-  if (!PeerClass) {
-    const mod = await import(PEER_URL);
-    PeerClass = mod.Peer || mod.default;
+function load() {
+  if (window.peerjs) return Promise.resolve(window.peerjs.Peer);
+  if (!loading) {
+    loading = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = PEER_SRC;
+      s.onload = () => (window.peerjs ? resolve(window.peerjs.Peer) : reject(new Error('peerjs-missing')));
+      s.onerror = () => { loading = null; reject(new Error('peerjs-load')); };
+      document.head.appendChild(s);
+    });
   }
-  return PeerClass;
+  return loading;
 }
 
 function wrap(c, peer) {

@@ -32,6 +32,7 @@ button,input{font:inherit;color:inherit}
   padding:calc(10 * var(--px));display:flex;flex-direction:column;gap:calc(6 * var(--px))}
 .box h1{font-family:'Galmuri14','Galmuri11',sans-serif;font-size:calc(14px * var(--k));font-weight:400;color:var(--lemon);text-align:center}
 .sub{text-align:center;color:var(--cloud)}
+.mode{text-align:center;color:var(--mint);line-height:1.5}
 .field{display:flex;align-items:center;gap:calc(6 * var(--px))}
 .box input{flex:1;min-width:0;background:var(--ink2);border:var(--px) solid #5a5577;padding:var(--px) calc(4 * var(--px));outline:none}
 .box input:focus{border-color:var(--lemon)}
