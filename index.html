@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<title>냠냠 원정대 · 기술 검증</title>
-<meta name="description" content="냠냠 원정대(가칭) 기술 검증 M0: 웹 멀티플레이 동기화와 도트 렌더.">
+<title>냠냠 원정대</title>
+<meta name="description" content="냠냠 원정대(가칭) — 브라우저에서 같이 사냥하는 도트 MMORPG 개발 중 플레이테스트.">
 <meta name="theme-color" content="#2b2a3a">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="vendor/galmuri/galmuri.css">
@@ -12,26 +12,36 @@
 </head>
 <body>
 <div class="screen" id="screen">
-  <canvas id="cv" aria-label="마을"></canvas>
+  <canvas id="cv" aria-label="게임 화면"></canvas>
 
   <div class="hud" id="hud" hidden>
     <div class="bar">
       <b id="room"></b>
       <span id="people"></span>
       <button type="button" id="copy">초대 링크 복사</button>
+      <button type="button" id="snd" title="M">소리 켬</button>
       <button type="button" id="btnLeave" title="Esc">나가기</button>
     </div>
     <p class="net" id="net"></p>
     <pre class="dbg" id="dbg" hidden></pre>
-    <p class="keys">이동 WASD·방향키 · 디버그 F3 · 나가기 Esc</p>
+    <p class="keys" id="keys">이동 WASD · 공격 J/Space (자동 조준) · 구르기 K/Shift · 소리 M · 나가기 Esc</p>
+    <div class="pad" aria-hidden="true">
+      <button type="button" id="tRoll" class="roll">구르기</button>
+      <button type="button" id="tAtk" class="atk">공격</button>
+    </div>
   </div>
 
   <div class="title" id="title">
     <div class="box">
       <h1>냠냠 원정대</h1>
-      <p class="sub">기술 검증 M0 · 그림은 임시</p>
+      <p class="sub">개발 중 플레이테스트 · M1 필드와 손맛</p>
       <p class="mode" id="mode"></p>
       <label class="field">이름 <input id="name" maxlength="12" placeholder="손님" autocomplete="off"></label>
+      <div class="chans" id="chans" hidden>
+        <button type="button" data-ch="CH01">채널 1</button>
+        <button type="button" data-ch="CH02">채널 2</button>
+        <button type="button" data-ch="CH03">채널 3</button>
+      </div>
       <button type="button" id="btnHost">방 만들기</button>
       <form id="joinForm" class="join">
         <input id="code" maxlength="4" placeholder="코드" autocomplete="off" aria-label="방 코드">

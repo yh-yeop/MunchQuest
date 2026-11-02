@@ -7,7 +7,7 @@ const ALLOWED_ORIGINS = new Set([
   'http://127.0.0.1:8765',
   'http://localhost:8765',
 ]);
-const ROOM_RE = /^\/room\/([A-Z2-9]{4})$/;
+const ROOM_RE = /^\/room\/([A-Z0-9]{4})$/;   // 친구 방 코드(0 · 1 없음) · 공개 채널 CH01…
 const MAX_MSG_BYTES = 8 * 1024;
 const MAX_MSGS_PER_SEC = 60;   // 클라이언트는 입력을 20Hz로 묶어 보낸다. 넘치면 끊음 (무료 요청 한도 보호)
 

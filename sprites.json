@@ -1,5 +1,10 @@
 {
-  "_설명": "스프라이트 표. file 이 null 이면 render.js 가 팔레트로 임시 그림을 그린다. 그림이 생기면 file · 프레임 위치만 채운다.",
-  "tile": { "w": 16, "h": 16, "file": null, "types": ["grass", "flower", "path", "plaza", "water", "tree", "wall", "roof", "door", "fence"] },
-  "player": { "w": 16, "h": 24, "anchor": [8, 24], "file": null, "anims": { "idle": 2, "walk": 4 }, "directions": "right (왼쪽은 뒤집기)" }
+  "_설명": "스프라이트 표. 지금은 그림 파일 없이 render.js 가 팔레트로 직접 찍는다(처음 쓸 때 캐시). 그림 파일이 생기면 file · 프레임 위치만 채워 갈아 끼운다.",
+  "tile": { "w": 16, "h": 16, "file": null, "types": ["grass", "flower", "tall", "path", "plaza", "water", "tree", "bush", "rock", "stump", "wall", "roof", "door", "fence", "portal"] },
+  "player": { "w": 16, "h": 24, "anchor": [8, 24], "file": null, "anims": { "idle": 2, "walk": 4, "roll": 4, "down": 1 }, "overlay": "후추통 총 (쏠 때 반동 · 불꽃)", "directions": "right (왼쪽은 뒤집기)" },
+  "mob.slime": { "w": 16, "h": 16, "file": null, "anims": { "rest": 2, "hop": 4 }, "hit": "흰색 번쩍" },
+  "mob.rabbit": { "w": 16, "h": 16, "file": null, "anims": { "rest": 2, "move": 4, "wind": 2, "dash": 1 } },
+  "mob.mushroom": { "w": 16, "h": 16, "file": null, "anims": { "rest": 2, "move": 2, "wind": 2 } },
+  "item": { "w": 8, "h": 8, "file": null, "types": ["coin", "jelly", "fluff", "cap"] },
+  "font.digits": { "w": 3, "h": 5, "file": null, "glyphs": "0-9 + - ! /" }
 }

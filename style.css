@@ -23,9 +23,23 @@ button,input{font:inherit;color:inherit}
 .bar button{cursor:pointer}
 .bar button:hover{border-color:var(--cloud)}
 .net{position:absolute;left:calc(6 * var(--px));top:calc(24 * var(--px));color:var(--cloud);text-shadow:var(--px) var(--px) 0 var(--ink)}
-.dbg{position:absolute;left:calc(6 * var(--px));bottom:calc(20 * var(--px));background:rgba(43,42,58,.85);border:var(--px) solid var(--ink2);
+.dbg{position:absolute;right:calc(6 * var(--px));bottom:calc(20 * var(--px));background:rgba(43,42,58,.85);border:var(--px) solid var(--ink2);
   padding:calc(3 * var(--px)) calc(5 * var(--px));font-family:inherit;white-space:pre;color:var(--mint)}
-.keys{position:absolute;left:0;right:0;bottom:calc(4 * var(--px));text-align:center;color:var(--cloud);text-shadow:var(--px) var(--px) 0 var(--ink)}
+.keys{position:absolute;left:0;right:0;bottom:calc(36 * var(--px));text-align:center;color:var(--cloud);text-shadow:var(--px) var(--px) 0 var(--ink);transition:opacity 1.5s}
+.keys,.net{transition:opacity 1.5s}
+.keys.fade,.net.fade{opacity:0}
+
+/* 터치 버튼: 손가락으로 쓰는 기기에서만 */
+.pad{display:none}
+@media (pointer:coarse){
+  .pad{display:block}
+  .keys{display:none}
+  .pad button{position:absolute;pointer-events:auto;border-radius:50%;border:var(--px) solid var(--ink);color:var(--ink);touch-action:none;
+    box-shadow:inset 0 calc(-3 * var(--px)) 0 rgba(43,42,58,.25)}
+  .pad .atk{right:calc(14 * var(--px));bottom:calc(14 * var(--px));width:calc(54 * var(--px));height:calc(54 * var(--px));background:var(--tomato);color:var(--white)}
+  .pad .roll{right:calc(74 * var(--px));bottom:calc(10 * var(--px));width:calc(38 * var(--px));height:calc(38 * var(--px));background:var(--sky);font-size:calc(9px * var(--k))}
+  .pad button:active{filter:brightness(.9);transform:translateY(var(--px))}
+}
 
 .title{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(29,28,40,.55);font-size:calc(12px * var(--k))}
 .box{width:calc(220 * var(--px));background:var(--ink);border:var(--px) solid var(--ink2);box-shadow:0 0 0 var(--px) #1d1c28;
@@ -43,3 +57,5 @@ button,input{font:inherit;color:inherit}
 .join input{text-transform:uppercase;letter-spacing:.2em;text-align:center}
 .join button{background:var(--sky);border-color:#7aa6d6;color:var(--ink);padding:var(--px) calc(8 * var(--px))}
 .msg{color:var(--lemon);text-align:center;line-height:1.5}
+.chans{display:flex;gap:calc(4 * var(--px))}
+.chans button{flex:1;background:var(--mint);border-color:#6fbf98;color:var(--ink)}
