@@ -1,0 +1,5 @@
+{
+  "_설명": "스프라이트 표. file 이 null 이면 render.js 가 팔레트로 임시 그림을 그린다. 그림이 생기면 file · 프레임 위치만 채운다.",
+  "tile": { "w": 16, "h": 16, "file": null, "types": ["grass", "flower", "path", "plaza", "water", "tree", "wall", "roof", "door", "fence"] },
+  "player": { "w": 16, "h": 24, "anchor": [8, 24], "file": null, "anims": { "idle": 2, "walk": 4 }, "directions": "right (왼쪽은 뒤집기)" }
+}

@@ -1,0 +1,9 @@
+{
+  "name": "munchquest",
+  "private": true,
+  "type": "module",
+  "description": "냠냠 원정대(가칭) 기술 검증. 빌드 없는 정적 페이지 + 방장 브라우저가 서버 역할",
+  "scripts": {
+    "test": "node --test"
+  }
+}
