@@ -119,6 +119,14 @@ export class Client {
     }
     for (const id of [...this.mobs.keys()]) if (!alive.has(id)) this.mobs.delete(id);
     for (const e of m.ev || []) this.onWorldEvent(e, t);
+    // 화면이 안 그려지는 동안(탭이 뒤로 감)에도 늦춘 사건이 끝없이 쌓이지 않게 스냅샷마다 내보낸다
+    this.release(t);
+  }
+
+  release(now) {
+    if (!this.later.length) return;
+    const due = this.later.filter((l) => l.at <= now);
+    if (due.length) { this.later = this.later.filter((l) => l.at > now); for (const l of due) this.emit(l.e); }
   }
 
   onWorldEvent(e, t) {
@@ -220,10 +228,7 @@ export class Client {
     if (Math.abs(this.offX) < 0.05) this.offX = 0;
     if (Math.abs(this.offY) < 0.05) this.offY = 0;
     const now = this.now();
-    if (this.later.length) {
-      const due = this.later.filter((l) => l.at <= now);
-      if (due.length) { this.later = this.later.filter((l) => l.at > now); for (const l of due) this.emit(l.e); }
-    }
+    this.release(now);
     const players = [];
     const me = this.me;
     if (me) players.push({ id: this.id, mine: true, x: me.x + this.offX, y: me.y + this.offY, fx: me.fx, moving: me.moving, roll: me.roll, hp: me.hp, maxhp: me.maxhp, lvl: me.lvl, down: me.down, inv: me.inv });

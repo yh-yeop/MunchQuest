@@ -3,13 +3,16 @@
 // 위치 · 피해 · 드롭 · 경험치는 전부 여기서 정한다. 클라이언트는 입력만 보낸다.
 // conn = { send(msg), onMessage(fn), onClose(fn), close() }
 import { getMap, portalAt, START_MAP, TS, isSolid } from './map.js';
-import { step, quant, hitsWall, lineOfSight, newBody } from './sim.js';
+import { step, quant, hitsWall, lineOfSight, newBody, DT } from './sim.js';
 import { PLAYER, MOBS, MOB_RESPAWN, DROP_LIFE, expToNext, shareBonus } from './data.js';
 import { PLAYER_COLORS } from './palette.js';
 
 export const TICK_HZ = 20;
 const TDT = 1 / TICK_HZ;
-const MAX_INPUTS_PER_TICK = 8;   // 밀린 입력도 한 틱에 이만큼만 (속도 조작 방지)
+const MAX_INPUTS_PER_TICK = 8;   // 밀린 입력도 한 틱에 이만큼만
+// 입력 예산: 클라이언트는 1/60초마다 입력 하나 → 틱마다 3개. 늦게 · 몰려 와도 밀리지 않게 20% 여유를 주고
+// 남은 예산은 MAX_INPUTS_PER_TICK 까지만 모아 둔다. 입력을 더 자주 보내도 이 이상 빨리 걷거나 쏘지 못한다 (속도 조작 방지)
+export const INPUT_BUDGET_PER_TICK = (1 / DT / TICK_HZ) * 1.2;
 const MAX_QUEUE = 60;
 const MOB_STATE = { idle: 0, move: 1, wind: 2, dash: 3, rest: 4 };
 
@@ -25,6 +28,7 @@ export class Server {
     this.tick = 0;
     this.joined = 0;
     this.nid = 0;
+    this.pid = 0;
     this.maxPlayers = maxPlayers;
     this.rand = rand;
   }
@@ -46,7 +50,7 @@ export class Server {
   }
 
   connect(conn) {
-    const id = 'p' + (this.conns.size + this.joined + 1) + Math.random().toString(36).slice(2, 5);
+    const id = 'p' + (++this.pid).toString(36) + Math.random().toString(36).slice(2, 5);   // 번호는 다시 쓰지 않는다 (겹치면 남의 연결을 덮어씀)
     this.conns.set(id, conn);
     conn.onMessage((m) => this.onMessage(id, m));
     conn.onClose(() => this.leave(id));
@@ -62,7 +66,7 @@ export class Server {
       const map = getMap(START_MAP);
       const at = this.spawnPoint(map);
       const p = { ...newBody(at.x, at.y), id, name: cleanName(m.name), color: PLAYER_COLORS[this.joined++ % PLAYER_COLORS.length],
-        mapId: map.id, last: 0, queue: [], hp: PLAYER.hp, maxhp: PLAYER.hp, lvl: 1, exp: 0, coins: 0, bag: {},
+        mapId: map.id, last: 0, queue: [], budget: MAX_INPUTS_PER_TICK, hp: PLAYER.hp, maxhp: PLAYER.hp, lvl: 1, exp: 0, coins: 0, bag: {},
         inv: 0, calm: 0, down: 0, drops: new Map(), dirty: true, notes: [] };
       this.players.set(id, p);
       this.zone(map.id);
@@ -71,7 +75,7 @@ export class Server {
     } else if (m.t === 'input' && Array.isArray(m.inputs)) {
       const p = this.players.get(id);
       if (!p) return;
-      for (const i of m.inputs) {
+      for (const i of m.inputs.length > MAX_QUEUE ? m.inputs.slice(-MAX_QUEUE) : m.inputs) {   // 어차피 뒤 60개만 남는다 (방장 모드엔 메시지 크기 제한이 없음)
         if (!i || !Number.isFinite(i.seq) || i.seq <= p.last) continue;
         p.queue.push({ seq: i.seq, dx: quant(i.dx), dy: quant(i.dy), a: i.a ? 1 : 0, r: i.r ? 1 : 0, tg: typeof i.tg === 'string' ? i.tg.slice(0, 10) : null });
       }
@@ -105,6 +109,8 @@ export class Server {
     for (const p of this.players.values()) active.add(p.mapId);
     for (const id of active) this.updateZone(this.zone(id));
     for (const id of active) this.sendSnapshot(this.zone(id));
+    // 아무도 없는 맵은 멈춘다. 마지막 사람이 떠나며 남긴 사건 · 탄은 버린다 (나중에 들어온 사람에게 지난 사건이 가지 않게)
+    for (const z of this.zones.values()) if (!active.has(z.id) && (z.ev.length || z.bullets.length || z.spores.length)) { z.ev = []; z.bullets = []; z.spores = []; }
     for (const p of this.players.values()) {
       if (!p.dirty && !p.notes.length) continue;
       this.conns.get(p.id)?.send({ t: 'me', lvl: p.lvl, exp: p.exp, need: expToNext(p.lvl), coins: p.coins, bag: p.bag, notes: p.notes });
@@ -113,6 +119,7 @@ export class Server {
   }
 
   updatePlayer(p) {
+    p.budget = Math.min(MAX_INPUTS_PER_TICK, p.budget + INPUT_BUDGET_PER_TICK);
     if (p.down > 0) {
       // 쓰러진 동안 온 입력은 확인만 하고 버린다
       for (const i of p.queue) p.last = Math.max(p.last, i.seq);
@@ -126,12 +133,12 @@ export class Server {
       return;
     }
     const map = getMap(p.mapId);
-    for (let n = 0; p.queue.length && n < MAX_INPUTS_PER_TICK;) {
+    while (p.queue.length && p.budget >= 1) {
       const i = p.queue.shift();
       if (i.seq <= p.last) continue;
       const fired = step(map, p, i);
       p.last = i.seq;
-      n++;
+      p.budget--;
       if (fired) this.fire(p, i.tg);
       const portal = portalAt(map, p.x, p.y);
       if (portal) { this.moveTo(p, portal.to, getMap(portal.to).entries[portal.entry]); break; }

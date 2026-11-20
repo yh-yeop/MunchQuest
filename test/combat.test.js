@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Server, TICK_HZ } from '../src/server.js';
+import { Server, TICK_HZ, INPUT_BUDGET_PER_TICK } from '../src/server.js';
 import { Client } from '../src/client.js';
 import { localPair } from '../src/net/local.js';
 import { withLatency } from '../src/net/latency.js';
@@ -126,8 +126,8 @@ test('공격 입력을 쏟아부어도 발사 간격은 서버가 지킨다', ()
   A.got.length = 0;
   for (let t = 0; t < 20; t++) { A.send(Array.from({ length: 20 }, () => ({ a: 1, tg: '__proto__' }))); server.update(); }
   const shots = A.got.filter((m) => m.t === 'snap').flatMap((m) => m.ev).filter((e) => e[0] === 'shot').length;
-  // 한 틱에 입력 8개까지 → 20틱 = 160입력 → 최대 ceil(160/14)발
-  assert.ok(shots <= Math.ceil(160 / ATK_CD), `${shots}발`);
+  // 입력 예산: 처음 모아 둔 8개 + 틱마다 3.6개 → 20틱(1초) ≈ 80입력 → 최대 ceil(80/14)발 (정상 연사의 1.2배 남짓)
+  assert.ok(shots <= Math.ceil((8 + 20 * INPUT_BUDGET_PER_TICK) / ATK_CD), `${shots}발`);
   assert.ok(shots > 0);
 });
 
