@@ -31,6 +31,7 @@ const serverUrl = serverFromUrl || SERVER_URL;
 const renderer = createRenderer($('cv'));
 renderer.setMap(getMap('town'));
 let session = null;   // { kind, client, server?, bots, closers, room }
+let joining = 0;      // 연결을 기다리는 동안 버튼을 또 누르면 앞의 시도는 버린다 (안 그러면 유령 접속이 남음)
 let fakeLag = 0;
 let debug = false;
 sound.on = store.get(SOUND_KEY) !== '0';
@@ -109,6 +110,8 @@ const clientEvents = (e) => {
 };
 
 function hostSession(kind, room) {
+  if (session) return;
+  joining++;
   const server = new Server();
   const closers = [startTicker(() => server.update(), TICK_HZ)];
   const [a, b] = localPair();
@@ -134,12 +137,16 @@ function hostSession(kind, room) {
 }
 
 async function joinSession(room) {
+  if (session) return;
+  const ticket = ++joining;
+  const stale = () => ticket !== joining || session;
   showMsg(`${roomLabel(room)} 찾는 중…`);
   let conn = null, net = '';
   if (serverUrl) {
     // 중계 서버가 있으면 채널 · 방 모두 서버로. 방은 서버에 있으니 누가 나가도 남는다
     try { conn = await connectWS(serverUrl, room); net = '서버 연결 (학교 · 회사망 OK)'; }
-    catch (e) { showMsg(`서버에 연결하지 못했어요 (${e.message}). 잠시 뒤 다시 해 보세요.`); return; }
+    catch (e) { if (!stale()) showMsg(`서버에 연결하지 못했어요 (${e.message}). 잠시 뒤 다시 해 보세요.`); return; }
+    if (stale()) { conn.close(); return; }
     const client = new Client(withLatency(conn, () => fakeLag), { name: myName(), onEvent: clientEvents });
     session = { kind: 'online', room, client, bots: [], closers: [() => conn.close()], net };
     startPlay();
@@ -147,9 +154,11 @@ async function joinSession(room) {
   }
   try { conn = await connectTabs(room); net = '같은 브라우저 탭으로 연결'; }
   catch (e) {
+    if (stale()) return;
     try { conn = await connectPeer(room); net = '인터넷(WebRTC)으로 연결'; }
-    catch (e2) { showMsg(`방을 못 찾았어요 (${e2.type || e2.message}). 코드를 확인하거나, 방장이 같은 네트워크 제한에 걸리지 않았는지 봐 주세요.`); return; }
+    catch (e2) { if (!stale()) showMsg(`방을 못 찾았어요 (${e2.type || e2.message}). 코드를 확인하거나, 방장이 같은 네트워크 제한에 걸리지 않았는지 봐 주세요.`); return; }
   }
+  if (stale()) { conn.close(); return; }
   const client = new Client(withLatency(conn, () => fakeLag), { name: myName(), onEvent: clientEvents });
   session = { kind: 'join', room, client, bots: [], closers: [() => conn.close()], net };
   startPlay();
@@ -193,7 +202,8 @@ addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT') return;
   held.add(e.code);
   if (!session) return;
-  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'ShiftLeft', 'ShiftRight'].includes(e.code)) e.preventDefault();
+  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'ShiftLeft', 'ShiftRight', 'F3'].includes(e.code)) e.preventDefault();
+  if (e.repeat) return;   // 아래는 켜고 끄는 키 — 누르고 있어도 한 번만
   if (e.code === 'F3' || e.code === 'Backquote') { e.preventDefault(); debug = !debug; updateHud(); }
   const n = { Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3 }[e.code];
   if (n !== undefined && debug) { fakeLag = LAG_PRESETS[n]; updateHud(); }
@@ -219,7 +229,8 @@ function readInput() {
 let stick = null;
 $('screen').addEventListener('pointerdown', (e) => {
   unlock();
-  if (e.pointerType === 'mouse' || e.target.closest('button')) return;
+  // 이미 끌고 있는 손가락이 있으면 다른 손가락(공격 버튼을 살짝 빗나간 터치 등)이 막대를 빼앗지 않는다
+  if (e.pointerType === 'mouse' || e.target.closest('button') || stick) return;
   stick = { x: e.clientX, y: e.clientY, id: e.pointerId };
 });
 addEventListener('pointermove', (e) => {
@@ -268,7 +279,10 @@ function updateDebug() {
 }
 
 // ---------- 루프 ----------
-let last = performance.now(), acc = 0, pingT = 0, dbgT = 0, flushT = 0;
+let last = performance.now(), acc = 0, dbgT = 0, flushT = 0;
+// 뒤로 간 탭은 타이머가 1초~1분에 한 번만 돌아 (가짜 지연) 스냅샷이 늦게 들어온다 — 돌아온 직후엔 끊김으로 보지 않는다
+let wokeAt = 0;
+addEventListener('visibilitychange', () => { if (!document.hidden) wokeAt = performance.now(); });
 function frame(now) {
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
@@ -287,9 +301,7 @@ function frame(now) {
       c.flush();
       for (const b of session.bots) b.client.flush();
     }
-    pingT += dt;
-    if (pingT > 1) { pingT = 0; c.ping(); for (const b of session.bots) b.client.ping(); }
-    if (c.lastSnap && performance.now() - c.lastSnap > 5000) leave('서버와 연결이 끊겼어요');
+    if (c.lastSnap && performance.now() - Math.max(c.lastSnap, wokeAt) > 5000) leave('서버와 연결이 끊겼어요');
     else {
       const view = c.view(dt);
       for (const e of c.drain()) {
@@ -304,6 +316,14 @@ function frame(now) {
   }
   requestAnimationFrame(frame);
 }
+
+// 왕복 시간 재기 겸 살아 있다는 신호. 그리기 루프 밖에서 보낸다 — 뒤로 간 탭은 그리기가 멈추는데,
+// 같은 브라우저 탭 연결의 방장은 6초 동안 말이 없으면 끊는다
+setInterval(() => {
+  if (!session) return;
+  session.client.ping();
+  for (const b of session.bots) b.client.ping();
+}, 1000);
 
 // ---------- 시작 화면 ----------
 $('name').value = store.get(NAME_KEY) || '';
