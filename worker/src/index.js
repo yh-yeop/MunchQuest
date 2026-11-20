@@ -59,7 +59,8 @@ export class Room {
       try { msg = JSON.parse(e.data); } catch (err) { return; }
       for (const f of handlers) f(msg);
     });
-    ws.addEventListener('close', finish);
+    // 상대가 먼저 닫으면 닫기 응답을 보내야 상대 소켓이 '닫는 중'에 멈춰 있지 않는다
+    ws.addEventListener('close', () => { try { ws.close(1000, 'bye'); } catch (err) { /* 이미 닫힘 */ } finish(); });
     ws.addEventListener('error', finish);
     this.server.connect(conn);
     this.start();
