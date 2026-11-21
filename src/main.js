@@ -273,13 +273,15 @@ function updateDebug() {
     `예측 ${c.predict ? '켬' : '끔'} (P) · 보간 ${c.interp ? '켬' : '끔'} (I)`,
     `스냅샷 ${Math.round(c.snapGap)}ms · 보간 ${Math.round(c.interpDelay)}ms`,
     `되맞춤 ${c.corrections} · 대기 입력 ${c.pending.length}`,
-    `맵 ${c.mapId} · 몬스터 ${c.mobs.size}`,
+    `맵 ${c.mapId} · 몬스터 ${c.mobs.size} · 사람 ${c.others.size + 1}`,
+    `프레임 ${cost.frame.toFixed(2)}ms (그리기 ${cost.draw.toFixed(2)})`,
     session.server ? `서버 틱 ${session.server.tick} · 봇 (B)` : '',
   ].filter(Boolean).join('\n');
 }
 
 // ---------- 루프 ----------
 let last = performance.now(), acc = 0, dbgT = 0, flushT = 0;
+const cost = { frame: 0, draw: 0 };   // 프레임 하나에 든 시간(ms, 지수 평균) — 디버그 패널
 // 뒤로 간 탭은 타이머가 1초~1분에 한 번만 돌아 (가짜 지연) 스냅샷이 늦게 들어온다 — 돌아온 직후엔 끊김으로 보지 않는다
 let wokeAt = 0;
 addEventListener('visibilitychange', () => { if (!document.hidden) wokeAt = performance.now(); });
@@ -287,6 +289,7 @@ function frame(now) {
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
   if (session) {
+    const t0 = performance.now();
     const c = session.client;
     acc += dt;
     while (acc >= DT) {
@@ -309,7 +312,11 @@ function frame(now) {
         renderer.event(e);
         eventSound(e);
       }
+      const t1 = performance.now();
       renderer.draw(view, { auth: c.auth, debug, roster: c.roster, stats: c.stats, time: now / 1000, dt, meIdNow: c.id });
+      const t2 = performance.now();
+      cost.draw = cost.draw * 0.95 + (t2 - t1) * 0.05;
+      cost.frame = cost.frame * 0.95 + (t2 - t0) * 0.05;
       dbgT += dt;
       if (dbgT > 0.25) { dbgT = 0; updateDebug(); }
     }
@@ -363,4 +370,4 @@ if (params.get('room')) $('code').focus(); else $('name').focus();
 document.fonts.load('12px Galmuri11').catch(() => {}).finally(() => requestAnimationFrame(frame));
 
 // 디버그 · 자동 테스트용
-window.__munch = { get session() { return session; }, hostSession, joinSession, leave, set lag(v) { fakeLag = v; } };
+window.__munch = { cost, get session() { return session; }, hostSession, joinSession, leave, set lag(v) { fakeLag = v; } };

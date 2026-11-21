@@ -539,7 +539,8 @@ export function createRenderer(canvas) {
       tags.push({ id: p.id, mine: p.mine, p, name: info.name, bar, x: Math.round(p.x) - cx, y: Math.round(p.y) - cy - (p.down ? 12 : 26),
         w: Math.ceil(ctx.measureText(info.name).width) + 2, h: 12, below: bar ? 4 : 0 });
     }
-    for (const { p, name, bar, x, y } of layoutTags(tags)) {
+    for (const { p, name, bar, x, y, hidden } of layoutTags(tags)) {
+      if (hidden) continue;
       outlined(name, x, y, p.mine ? PAL.lemon : PAL.white);
       if (bar) {
         ctx.fillStyle = PAL.ink; ctx.fillRect(x - 8, y + 1, 16, 3);

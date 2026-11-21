@@ -29,3 +29,14 @@ test('이름표 자리는 들어온 순서와 상관없이 같고, 떨어져 선
   assert.equal(pos(a).p4, 60);
   assert.equal(pos(a).p1, 60, '처음 놓인 것은 그대로');
 });
+
+test('사람이 몰리면 이름표는 세 줄 남짓까지만 쌓고 나머지는 숨긴다 (내 것은 늘 보임)', () => {
+  const tags = Array.from({ length: 20 }, (_, k) => ({ id: 'p' + String(k).padStart(2, '0'), mine: k === 7, x: 100 + (k % 3), y: 200, w: 30, h: 12 }));
+  layoutTags(tags);
+  const shown = tags.filter((t) => !t.hidden);
+  noOverlap(shown);
+  assert.ok(shown.length >= 3 && shown.length <= 5, `${shown.length}개`);
+  assert.ok(shown.every((t) => 200 - t.y <= 48));
+  assert.ok(!tags.find((t) => t.mine).hidden);
+  assert.ok(shown.some((t) => t.id === 'p00'), 'id 순서로 앞의 것이 남음 (자리가 안 바뀜)');
+});
