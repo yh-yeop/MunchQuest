@@ -3,7 +3,7 @@
 // 화면 효과에 쓸 사건(쏨 · 맞음 · 쓰러짐 · 드롭 …)은 events 에 쌓고 main 이 drain() 으로 가져간다.
 import { getMap, START_MAP } from './map.js';
 import { step, quant, lineOfSight, newBody, BODY_KEYS } from './sim.js';
-import { PLAYER } from './data.js';
+import { PLAYER, MOB_TYPES } from './data.js';
 
 export class Client {
   constructor(conn, { name = '손님', now = () => performance.now(), onEvent = () => {} } = {}) {
@@ -98,18 +98,19 @@ export class Client {
     this.interpDelay = Math.max(100, this.snapGap * 2 + 20);
     const seen = new Set();
     for (const a of m.players) {
-      const [id, x, y, last] = a;
-      if (id === this.id) { this.reconcile(a, last); continue; }
+      const [id, x, y] = a;
+      if (id === this.id) { if (m.you) this.reconcile(a, m.you); continue; }
       seen.add(id);
       let o = this.others.get(id);
       if (!o) { o = { buf: [], x, y, fx: 1, moving: false }; this.others.set(id, o); }
       o.buf.push({ t, x, y });
       while (o.buf.length > 2 && o.buf[1].t < t - 1000) o.buf.shift();
-      o.sfx = a[4]; o.roll = a[6]; o.hp = a[10]; o.maxhp = a[11]; o.lvl = a[12]; o.down = a[13]; o.inv = a[14];
+      o.sfx = a[3]; o.roll = a[4]; o.hp = a[5]; o.maxhp = a[6]; o.lvl = a[7]; o.down = a[8]; o.inv = a[9];
     }
     for (const id of [...this.others.keys()]) if (!seen.has(id)) this.others.delete(id);
     const alive = new Set();
-    for (const [id, type, x, y, hp, state, fx] of m.mobs) {
+    for (const [id, kind, x, y, hp, state, fx] of m.mobs) {
+      const type = MOB_TYPES[kind];
       alive.add(id);
       let o = this.mobs.get(id);
       if (!o) { o = { buf: [], x, y, type, fx }; this.mobs.set(id, o); }
@@ -153,15 +154,16 @@ export class Client {
     }
   }
 
-  reconcile(a, last) {
-    const [, x, y] = a;
+  // a: 스냅샷의 내 줄 (hp 등), you: 서버가 처리한 마지막 입력 직후의 내 몸 상태
+  reconcile(a, you) {
+    const [x, y, last] = you;
     this.auth = { x, y };
     this.pending = this.pending.filter((i) => i.seq > last);
     const me = this.me;
-    me.hp = a[10]; me.maxhp = a[11]; me.lvl = a[12]; me.inv = a[14];
-    if (a[13] && !me.down) this.pending = [];
-    me.down = a[13];
-    const srv = { x, y, fx: a[4], cd: a[5], roll: a[6], rcd: a[7], rdx: a[8], rdy: a[9] };
+    me.hp = a[5]; me.maxhp = a[6]; me.lvl = a[7]; me.inv = a[9];
+    if (a[8] && !me.down) this.pending = [];
+    me.down = a[8];
+    const srv = { x, y, fx: you[3], cd: you[4], roll: you[5], rcd: you[6], rdx: you[7], rdy: you[8] };
     if (!this.predict) { Object.assign(me, srv); return; }
     const p = { ...srv };
     for (const i of this.pending) step(this.map, p, i);

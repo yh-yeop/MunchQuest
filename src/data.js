@@ -20,6 +20,8 @@ export const MOBS = {
   rabbit: { name: '솜털 토끼', hp: 22, speed: 40, dmg: 10, exp: 8, r: 6, aggro: 64, ai: 'charge', drops: [['fluff', 0.5, 1, 1], ['coin', 0.8, 1, 4]] },
   mushroom: { name: '버섯돌이', hp: 45, speed: 18, dmg: 9, exp: 12, r: 7, aggro: 120, ai: 'shoot', drops: [['cap', 0.55, 1, 1], ['coin', 0.9, 2, 5]] },
 };
+// 스냅샷엔 이름 대신 이 목록의 번호를 보낸다 (새 몬스터는 끝에 붙인다)
+export const MOB_TYPES = Object.keys(MOBS);
 export const MOB_RESPAWN = 6;   // 초
 export const DROP_LIFE = 30;    // 초
 

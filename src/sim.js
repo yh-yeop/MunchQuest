@@ -9,6 +9,9 @@ export const ATK_CD = 14;   // 공격 간격 (입력 수, 0.23초)
 export const ROLL_T = 13, ROLL_CD = 45, ROLL_MUL = 2.5;   // 구르기 길이 · 다시 쓰기까지 (입력 수) · 속도 배율
 
 // 입력은 소수 둘째 자리로 맞춰서 주고받는다 (서버 · 클라이언트가 같은 숫자를 쓰게)
+// 위치 · 구르기 방향은 소수 셋째 자리로 끊는다: 서버 · 클라이언트가 똑같이 끊으니 예측은 그대로 맞고,
+// 스냅샷의 좌표가 172.96681023132524 같은 18글자 대신 172.967 이 된다 (걸음마다 오차 0.0005px 이하, 속도 차 0.1% 미만)
+const q3 = (v) => Math.round(v * 1000) / 1000;
 export const quant = (v) => {
   const n = Number(v);
   return Number.isFinite(n) ? Math.round(Math.max(-1, Math.min(1, n)) * 100) / 100 : 0;
@@ -45,14 +48,14 @@ export function step(map, p, i, dt = DT) {
   if (dx) p.fx = dx > 0 ? 1 : -1;
   if (!p.roll && i.r && !p.rcd) {
     const n = Math.hypot(dx, dy);
-    if (n) { p.rdx = dx / n; p.rdy = dy / n; } else { p.rdx = p.fx; p.rdy = 0; }
+    if (n) { p.rdx = q3(dx / n); p.rdy = q3(dy / n); } else { p.rdx = p.fx; p.rdy = 0; }
     p.roll = ROLL_T; p.rcd = ROLL_CD;
   }
   let sp = SPEED;
   if (p.roll) { dx = p.rdx; dy = p.rdy; sp = SPEED * ROLL_MUL; p.roll--; }
   const mx = dx * sp * dt, my = dy * sp * dt;
-  if (mx && !hitsWall(map, p.x + mx, p.y)) p.x += mx;
-  if (my && !hitsWall(map, p.x, p.y + my)) p.y += my;
+  if (mx && !hitsWall(map, p.x + mx, p.y)) p.x = q3(p.x + mx);
+  if (my && !hitsWall(map, p.x, p.y + my)) p.y = q3(p.y + my);
   if (i.a && !p.cd && !p.roll) { p.cd = ATK_CD; return true; }
   return false;
 }

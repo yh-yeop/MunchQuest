@@ -4,7 +4,7 @@
 // conn = { send(msg), onMessage(fn), onClose(fn), close() }
 import { getMap, portalAt, START_MAP, TS, isSolid } from './map.js';
 import { step, quant, hitsWall, lineOfSight, newBody } from './sim.js';
-import { PLAYER, MOBS, MOB_RESPAWN, DROP_LIFE, expToNext, shareBonus } from './data.js';
+import { PLAYER, MOBS, MOB_TYPES, MOB_RESPAWN, DROP_LIFE, expToNext, shareBonus } from './data.js';
 import { PLAYER_COLORS } from './palette.js';
 
 export const TICK_HZ = 20;
@@ -399,19 +399,24 @@ export class Server {
     m.vx = (m.x - x0) / TDT; m.vy = (m.y - y0) / TDT;
   }
 
+  // 스냅샷: 모두에게 같은 부분(다른 사람은 보간용 반올림 좌표 · 보이는 상태만) + 받는 사람마다 자기 몸 상태(you, 되맞춤용 정확한 값)
+  // mobs: [id, 종류 번호(MOB_TYPES), x, y, hp, 상태, 방향]
+  // players: [id, x, y, 방향, 구르는 중, hp, 최대 hp, 레벨, 쓰러짐, 무적]
+  // you: [x, y, 마지막 입력, 방향, 공격 대기, 구르기, 구르기 대기, 구르기 방향 x, y]
   sendSnapshot(z) {
-    const players = [], mobs = [];
+    const players = [], mobs = [], here = [];
     for (const p of this.players.values()) {
       if (p.mapId !== z.id) continue;
-      players.push([p.id, p.x, p.y, p.last, p.fx, p.cd, p.roll, p.rcd, p.rdx, p.rdy, Math.ceil(p.hp), p.maxhp, p.lvl, p.down ? 1 : 0, p.inv > 0 ? 1 : 0]);
+      here.push(p);
+      players.push([p.id, r1(p.x), r1(p.y), p.fx, p.roll ? 1 : 0, Math.ceil(p.hp), p.maxhp, p.lvl, p.down ? 1 : 0, p.inv > 0 ? 1 : 0]);
     }
     for (const m of z.mobs.values()) {
       if (m.dead) continue;
-      mobs.push([m.id, m.type, r1(m.x), r1(m.y), m.hp, MOB_STATE[m.state] || 0, m.fx]);
+      mobs.push([m.id, MOB_TYPES.indexOf(m.type), r1(m.x), r1(m.y), m.hp, MOB_STATE[m.state] || 0, m.fx]);
     }
-    const msg = { t: 'snap', tick: this.tick, map: z.id, players, mobs, ev: z.ev };
+    const base = { t: 'snap', tick: this.tick, map: z.id, players, mobs, ev: z.ev };
     z.ev = [];
-    for (const [id, c] of this.conns) { const p = this.players.get(id); if (p && p.mapId === z.id) c.send(msg); }
+    for (const p of here) this.conns.get(p.id)?.send({ ...base, you: [p.x, p.y, p.last, p.fx, p.cd, p.roll, p.rcd, p.rdx, p.rdy] });
   }
 
   roster() { return [...this.players.values()].map(({ id, name, color, mapId }) => ({ id, name, color, map: mapId })); }

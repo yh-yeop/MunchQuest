@@ -33,7 +33,8 @@ test('대각선도 속도는 같다', () => {
   const a = { ...SPAWN }, b = { ...SPAWN };
   for (let n = 0; n < 30; n++) { step(map, a, { dx: 1, dy: 0 }); step(map, b, { dx: 1, dy: 1 }); }
   const da = Math.hypot(a.x - SPAWN.x, a.y - SPAWN.y), db = Math.hypot(b.x - SPAWN.x, b.y - SPAWN.y);
-  assert.ok(Math.abs(da - db) < 1e-9);
+  // 위치를 0.001px 단위로 끊으니 걸음마다 0.0005px까지 어긋날 수 있다 (0.1% 미만)
+  assert.ok(Math.abs(da - db) < SPEED * DT * 30 * 0.001, `${da} ${db}`);
   assert.ok(Math.abs(da - SPEED * DT * 30) < 1e-9);
 });
 
