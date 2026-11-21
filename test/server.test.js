@@ -6,24 +6,8 @@ import { localPair } from '../src/net/local.js';
 import { SPEED, ATK_CD, ROLL_T, hitsWall } from '../src/sim.js';
 import { getMap, MW, TS } from '../src/map.js';
 import { PLAYER, MOBS, DROP_LIFE, expToNext, shareBonus } from '../src/data.js';
+import { seeded, rawPlayer } from '../testlib/fake.js';
 
-const seeded = (s) => () => ((s = Math.imul(s ^ (s >>> 15), 2246822519) + 0x6d2b79f5 | 0) >>> 0) / 4294967296;
-
-// 서버에 바로 붙는 가짜 접속 (동기). 받은 메시지를 모아 둔다
-function rawPlayer(server, name = '손님') {
-  const [a, b] = localPair({ schedule: (fn) => fn() });
-  const id = server.connect(a);
-  const got = [];
-  b.onMessage((m) => got.push(m));
-  b.send({ t: 'hello', name });
-  let seq = 0;
-  return {
-    id, got, conn: b,
-    p: () => server.players.get(id),
-    send: (inputs) => b.send({ t: 'input', inputs: inputs.map((i) => ({ seq: ++seq, dx: 0, dy: 0, ...i })) }),
-    notes: (k) => got.filter((m) => m.t === 'me').flatMap((m) => m.notes).filter((n) => n[0] === k),
-  };
-}
 
 // 몬스터 하나 옆 빈자리
 function besideMob(z, m, d = 28) {

@@ -5,30 +5,8 @@ import { Client, sample } from '../src/client.js';
 import { localPair } from '../src/net/local.js';
 import { withLatency } from '../src/net/latency.js';
 import { DT } from '../src/sim.js';
+import { seeded, fakeClock } from '../testlib/fake.js';
 
-const seeded = (s) => () => ((s = Math.imul(s ^ (s >>> 15), 2246822519) + 0x6d2b79f5 | 0) >>> 0) / 4294967296;
-
-// 가짜 시계: setTimeout 을 흉내 내고 advance 로 시간을 민다
-function fakeClock() {
-  let t = 0, n = 0;
-  const q = [];
-  return {
-    now: () => t,
-    setTimeout: (fn, ms = 0) => { q.push({ at: t + Math.max(0, ms), fn, id: n++ }); },
-    advance(ms) {
-      const end = t + ms;
-      for (;;) {
-        q.sort((a, b) => a.at - b.at || a.id - b.id);
-        const e = q[0];
-        if (!e || e.at > end) break;
-        q.shift();
-        t = e.at;
-        e.fn();
-      }
-      t = end;
-    },
-  };
-}
 
 function setup({ rtt = 150, jitter = 0.2, seed = 1, bots = 0 } = {}) {
   const clock = fakeClock();

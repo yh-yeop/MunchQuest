@@ -7,29 +7,8 @@ import { withLatency } from '../src/net/latency.js';
 import { step, newBody, hitsWall, DT, SPEED, ROLL_T, ROLL_MUL, ATK_CD } from '../src/sim.js';
 import { getMap, MW, TS } from '../src/map.js';
 import { MOBS, shareBonus } from '../src/data.js';
+import { seeded, fakeClock, rawPlayer } from '../testlib/fake.js';
 
-const seeded = (s) => () => ((s = Math.imul(s ^ (s >>> 15), 2246822519) + 0x6d2b79f5 | 0) >>> 0) / 4294967296;
-
-function fakeClock() {
-  let t = 0, n = 0;
-  const q = [];
-  return {
-    now: () => t,
-    setTimeout: (fn, ms = 0) => { q.push({ at: t + Math.max(0, ms), fn, id: n++ }); },
-    advance(ms) {
-      const end = t + ms;
-      for (;;) {
-        q.sort((a, b) => a.at - b.at || a.id - b.id);
-        const e = q[0];
-        if (!e || e.at > end) break;
-        q.shift();
-        t = e.at;
-        e.fn();
-      }
-      t = end;
-    },
-  };
-}
 
 // 실제 클라이언트 + 가짜 지연. inputFn(t) → [dx, dy, a, r]
 function world({ rtt = 150, jitter = 0.3, seed = 1 } = {}) {
@@ -52,16 +31,6 @@ function world({ rtt = 150, jitter = 0.3, seed = 1 } = {}) {
   return { clock, server, client, run, me: () => server.players.get(client.id) };
 }
 
-// 서버에 바로 붙는 가짜 접속 (동기). 받은 메시지를 모아 둔다
-function rawPlayer(server, name) {
-  const [a, b] = localPair({ schedule: (fn) => fn() });
-  const id = server.connect(a);
-  const got = [];
-  b.onMessage((m) => got.push(m));
-  b.send({ t: 'hello', name });
-  let seq = 0;
-  return { id, got, p: () => server.players.get(id), send: (inputs) => b.send({ t: 'input', inputs: inputs.map((i) => ({ seq: ++seq, dx: 0, dy: 0, ...i })) }) };
-}
 
 const sameBody = (c, s) => Math.abs(c.x - s.x) < 1e-9 && Math.abs(c.y - s.y) < 1e-9;
 

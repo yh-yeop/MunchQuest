@@ -2,8 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildHub, SPAWN, TS, MW, MH, isSolid } from '../src/map.js';
 import { step, hitsWall, quant, SPEED, DT, R } from '../src/sim.js';
-
-const seeded = (s) => () => ((s = Math.imul(s ^ (s >>> 15), 2246822519) + 0x6d2b79f5 | 0) >>> 0) / 4294967296;
+import { seeded } from '../testlib/fake.js';
 
 test('같은 입력이면 같은 위치 (결정성)', () => {
   const map = buildHub();

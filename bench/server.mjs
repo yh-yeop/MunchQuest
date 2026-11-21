@@ -4,7 +4,7 @@
 import { Server, TICK_HZ } from '../src/server.js';
 import { getMap } from '../src/map.js';
 
-const seeded = (s) => () => ((s = Math.imul(s ^ (s >>> 15), 2246822519) + 0x6d2b79f5 | 0) >>> 0) / 4294967296;
+import { seeded } from '../testlib/fake.js';
 
 export function run(n, { ticks = TICK_HZ * 60, seed = 7 } = {}) {
   const rand = seeded(seed);

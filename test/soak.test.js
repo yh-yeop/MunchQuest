@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { run } from '../bench/server.mjs';
 import { TICK_HZ } from '../src/server.js';
+import { seeded, fakeClock } from '../testlib/fake.js';
 
 test('스냅샷: 다른 사람 좌표는 반올림, 내 몸 상태(you)는 나에게만 정확한 값으로', () => {
   const { server } = run(4, { ticks: 40 });
@@ -52,27 +53,6 @@ import { withLatency } from '../src/net/latency.js';
 import { DT } from '../src/sim.js';
 import { getMap, TS } from '../src/map.js';
 
-const seeded = (s) => () => ((s = Math.imul(s ^ (s >>> 15), 2246822519) + 0x6d2b79f5 | 0) >>> 0) / 4294967296;
-function fakeClock() {
-  let t = 0, n = 0;
-  const q = [];
-  return {
-    now: () => t,
-    setTimeout: (fn, ms = 0) => { q.push({ at: t + Math.max(0, ms), fn, id: n++ }); },
-    advance(ms) {
-      const end = t + ms;
-      for (;;) {
-        q.sort((a, b) => a.at - b.at || a.id - b.id);
-        const e = q[0];
-        if (!e || e.at > end) break;
-        q.shift();
-        t = e.at;
-        e.fn();
-      }
-      t = end;
-    },
-  };
-}
 
 test('오래 돌리기: 클라이언트 4명이 지연 80~200ms로 3분 동안 사냥 · 포털을 오가도 되맞춤 0회, 클라이언트 버퍼가 쌓이지 않는다', { timeout: 60000 }, () => {
   const clock = fakeClock();

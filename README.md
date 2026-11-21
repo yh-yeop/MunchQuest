@@ -63,7 +63,8 @@
 | `src/client.js` | 예측 · 되맞춤 · 보간, 화면 효과용 사건 |
 | `src/net/` | 연결 방식들(`ws` · `tabs` · `peer` · `local`)과 가짜 지연 |
 | `src/config.js` | 중계 서버 주소 |
-| `src/render.js` | 480×270 도트 렌더: 타일 · 캐릭터 · 몬스터 · 효과 · HUD를 팔레트로 직접 찍음 |
+| `src/render.js` | 480×270 도트 렌더: 카메라 · 효과 · 이름표 · HUD |
+| `src/sprites.js` · `src/tiles.js` | 캐릭터 · 몬스터 · 아이템 · 숫자 글꼴, 타일을 팔레트로 직접 찍음 |
 | `src/tags.js` | 이름표 자리 잡기 (가까이 선 사람끼리 겹치면 위로 쌓음) |
 | `src/sfx.js` | WebAudio 합성 효과음 (멀리서 난 소리는 작게, 400px 밖은 안 들림) |
 | `src/keys.js` | 키 바꾸기 (주 키 + 늘 되는 보조 키, 겹치면 맞바꿈) |
@@ -71,6 +72,7 @@
 | `src/bot.js` | 혼자 테스트의 사냥 봇 (화면과 무관해서 시험에서도 그대로 씀) |
 | `worker/` | Cloudflare Worker + Durable Object (출처 검사 · 메시지 크기 · 초당 60개 제한) |
 | `vendor/` | 저장소에 둔 글꼴 · 라이브러리 |
+| `testlib/fake.js` | 시험이 같이 쓰는 가짜 시계 · 정해진 무작위 · 바로 붙는 접속 |
 | `bench/server.mjs` · `docs/PERF.md` | 서버 틱 비용 · 스냅샷 크기 측정과 기록 (30명: 틱 0.2ms 안팎, 스냅샷 618B · 몬스터는 바뀐 것만) |
 | `sprites.json` · `assets/LICENSES.md` | 스프라이트 표 · 에셋 라이선스 장부 |
 
