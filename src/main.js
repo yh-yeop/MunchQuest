@@ -38,7 +38,9 @@ sound.on = store.get(SOUND_KEY) !== '0';
 
 // ---------- 화면 크기: 정수 배율 ----------
 function fit() {
-  const k = Math.min(innerWidth / VW, innerHeight / VH);
+  const cs = getComputedStyle(document.body);   // 노치 피하는 여백(safe-area)은 빼고
+  const w = innerWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight), h = innerHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+  const k = Math.min(w / VW, h / VH);
   const scale = k >= 2 ? Math.floor(k) : k;   // 2배 이상은 정수 배율, 그보다 작은 화면(폰)은 꽉 차게
   const st = $('screen').style;
   st.width = `${VW * scale}px`;
@@ -187,6 +189,7 @@ function leave(reason) {
   session = null;
   for (const c of s.closers) { try { c(); } catch (e) { /* 정리 중 오류 무시 */ } }
   $('hud').hidden = true;
+  $('stick').hidden = true;
   $('title').hidden = false;
   history.replaceState(null, '', location.pathname);
   showMsg(reason || '');
@@ -232,14 +235,19 @@ $('screen').addEventListener('pointerdown', (e) => {
   // 이미 끌고 있는 손가락이 있으면 다른 손가락(공격 버튼을 살짝 빗나간 터치 등)이 막대를 빼앗지 않는다
   if (e.pointerType === 'mouse' || e.target.closest('button') || stick) return;
   stick = { x: e.clientX, y: e.clientY, id: e.pointerId };
+  const st = $('stick');
+  st.style.left = `${e.clientX}px`; st.style.top = `${e.clientY}px`; st.firstChild.style.transform = '';
+  st.hidden = !session;
 });
 addEventListener('pointermove', (e) => {
   if (!stick || e.pointerId !== stick.id) return;
   const dx = e.clientX - stick.x, dy = e.clientY - stick.y, d = Math.hypot(dx, dy);
   const s = d < 8 ? 0 : Math.min(1, d / 50) / d;
   touch.x = dx * s; touch.y = dy * s;
+  const k = Math.min(d, 40) / (d || 1);
+  $('stick').firstChild.style.transform = `translate(${Math.round(dx * k)}px, ${Math.round(dy * k)}px)`;
 });
-const stickEnd = (e) => { if (stick && e.pointerId === stick.id) { stick = null; touch.x = touch.y = 0; } };
+const stickEnd = (e) => { if (stick && e.pointerId === stick.id) { stick = null; touch.x = touch.y = 0; $('stick').hidden = true; } };
 addEventListener('pointerup', stickEnd);
 addEventListener('pointercancel', stickEnd);
 for (const [id, key] of [['tAtk', 'atk'], ['tRoll', 'roll']]) {

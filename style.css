@@ -17,7 +17,8 @@ button,input{font:inherit;color:inherit}
 
 /* 화면 위 글자는 도트 글꼴 12px × 정수 배율 */
 .hud{position:absolute;inset:0;pointer-events:none;font-size:calc(12px * var(--k));line-height:1.4}
-.bar{position:absolute;left:calc(6 * var(--px));top:calc(6 * var(--px));display:flex;gap:calc(6 * var(--px));align-items:center;pointer-events:auto}
+.bar{position:absolute;left:calc(6 * var(--px));top:calc(6 * var(--px));right:calc(6 * var(--px));display:flex;flex-wrap:wrap;gap:calc(4 * var(--px)) calc(6 * var(--px));align-items:center;pointer-events:none}
+.bar>*{pointer-events:auto}
 .bar b,.bar span,.bar button{background:rgba(43,42,58,.85);border:var(--px) solid var(--ink2);padding:var(--px) calc(4 * var(--px))}
 .bar b{color:var(--lemon);font-weight:400}
 .bar button{cursor:pointer}
@@ -37,7 +38,7 @@ button,input{font:inherit;color:inherit}
   .keys{display:none}
   .pad button{position:absolute;pointer-events:auto;border-radius:50%;border:var(--px) solid var(--ink);color:var(--ink);touch-action:none;
     box-shadow:inset 0 calc(-3 * var(--px)) 0 rgba(43,42,58,.25)}
-  .pad .atk{right:calc(14 * var(--px));bottom:calc(14 * var(--px));width:calc(54 * var(--px));height:calc(54 * var(--px));background:var(--tomato);color:var(--white)}
+  .pad .atk{right:calc(14 * var(--px));bottom:calc(14 * var(--px));width:calc(54 * var(--px));height:calc(54 * var(--px));background:var(--tomato);color:var(--ink)}
   .pad .roll{right:calc(74 * var(--px));bottom:calc(10 * var(--px));width:calc(38 * var(--px));height:calc(38 * var(--px));background:var(--sky);font-size:calc(9px * var(--k))}
   .pad button:active{filter:brightness(.9);transform:translateY(var(--px))}
 }
@@ -51,7 +52,8 @@ button,input{font:inherit;color:inherit}
 .field{display:flex;align-items:center;gap:calc(6 * var(--px))}
 .box input{flex:1;min-width:0;background:var(--ink2);border:var(--px) solid #5a5577;padding:var(--px) calc(4 * var(--px));outline:none}
 .box input:focus{border-color:var(--lemon)}
-.box button{background:var(--tomato);border:var(--px) solid #b9524e;padding:calc(2 * var(--px));cursor:pointer;color:var(--white)}
+/* 글자색은 진한 색: 흰 글자는 토마토색 바탕에서 대비 2.7:1 로 모자람 (진한 색은 4.9:1) */
+.box button{background:var(--tomato);border:var(--px) solid #b9524e;padding:calc(2 * var(--px));cursor:pointer;color:var(--ink)}
 .box button:hover{filter:brightness(1.08)}
 .box button.ghost{background:transparent;border-color:#5a5577;color:var(--cloud)}
 .join{display:flex;gap:calc(6 * var(--px))}
@@ -60,3 +62,19 @@ button,input{font:inherit;color:inherit}
 .msg{color:var(--lemon);text-align:center;line-height:1.5}
 .chans{display:flex;gap:calc(4 * var(--px))}
 .chans button{flex:1;background:var(--mint);border-color:#6fbf98;color:var(--ink)}
+
+/* 끌어서 움직이는 막대: 손가락을 댄 자리에 받침, 끈 쪽으로 손잡이 (화면 크기와 무관하게 실제 px) */
+.stick{position:fixed;width:96px;height:96px;margin:-48px 0 0 -48px;border-radius:50%;border:2px solid rgba(251,247,239,.45);
+  background:rgba(43,42,58,.25);pointer-events:none;z-index:5}
+.stick i{position:absolute;left:50%;top:50%;width:40px;height:40px;margin:-20px 0 0 -20px;border-radius:50%;background:rgba(251,247,239,.6);border:2px solid var(--ink)}
+
+/* 폰을 세워 들면 화면이 작다: 눕혀 달라고 알려 준다 (그대로 해도 됨) */
+.rotate{display:none}
+@media (pointer:coarse) and (orientation:portrait){
+  .rotate{display:block;position:fixed;left:0;right:0;bottom:calc(24px + env(safe-area-inset-bottom));text-align:center;color:var(--lemon);font-size:14px;z-index:6;pointer-events:none}
+}
+/* 노치 · 둥근 모서리 피하기 */
+@supports (padding:env(safe-area-inset-left)){
+  body{padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+}
+@media (pointer:coarse) and (orientation:portrait){ .net{display:none} }
