@@ -1,5 +1,7 @@
 // 몬스터 · 아이템 · 성장 표. 서버는 판정에, 클라이언트는 이름 · 그림에 쓴다.
 // 수치를 고칠 때는 이 파일만 고친다.
+export const TICK_HZ = 20;   // 서버 틱 (초당)
+
 export const PLAYER = {
   hp: 60, hpPerLvl: 8,
   dmg: 10, dmgPerLvl: 2, spread: 0.15,   // 피해 ±15%
