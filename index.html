@@ -55,7 +55,18 @@
         <button type="submit">참가</button>
       </form>
       <button type="button" id="btnSolo" class="ghost">혼자 테스트 (봇 3 · 지연 150ms)</button>
+      <button type="button" id="btnSet" class="ghost">설정 (키 바꾸기 · 화면 흔들림)</button>
       <p class="msg" id="msg" hidden></p>
+    </div>
+    <div class="box" id="settings" hidden role="dialog" aria-labelledby="setTitle">
+      <h1 id="setTitle">설정</h1>
+      <p class="sub">바꿀 동작을 누르고 새 키를 누르세요. 방향키 · Space · Shift 는 늘 돼요.</p>
+      <div class="keylist" id="keyList"></div>
+      <label class="check"><input type="checkbox" id="calm"> 움직임 줄이기 (화면 흔들림 · 깜빡임 끄기)</label>
+      <div class="row">
+        <button type="button" id="keysReset" class="ghost">기본 키로</button>
+        <button type="button" id="setClose">닫기</button>
+      </div>
     </div>
   </div>
 </div>

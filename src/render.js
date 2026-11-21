@@ -249,6 +249,8 @@ export function createRenderer(canvas) {
   const fx = { shots: [], spores: [], parts: [], nums: [], drops: new Map(), flies: [], rings: [], pops: [], pillars: [], banner: null, big: null, shake: 0, hurt: 0 };
   // stop: 히트스톱 — 내가 맞힌 몬스터를 잠깐(0.05초, 치명타 0.09초) 그 자리 그 모습으로 멈춰 그린다. 판정과 무관한 그림만
   const flash = new Map(), recoil = new Map(), aim = new Map(), stop = new Map();
+  // calm: 움직임 줄이기 (설정 · prefers-reduced-motion) — 화면 흔들림 없음, 초당 3번 넘게 깜빡이는 효과는 반투명 · 고정으로
+  const opt = { calm: false };
   let lastPlayers = new Map(), lastMobs = new Map(), meId = null;
 
   function setMap(m) {
@@ -350,6 +352,7 @@ export function createRenderer(canvas) {
     const W = map.w * TS, H = map.h * TS;
     const fxp = me ? me.x : W / 2, fyp = me ? me.y - 12 : H / 2;
     fx.shake = Math.max(0, fx.shake - dt * 14);
+    if (opt.calm) fx.shake = 0;
     const sh = fx.shake > 0.3 ? Math.round((Math.random() * 2 - 1) * fx.shake) : 0;
     const sv = fx.shake > 0.3 ? Math.round((Math.random() * 2 - 1) * fx.shake) : 0;
     const cx = Math.round(Math.max(0, Math.min(W - VW, fxp - VW / 2))) + sh;
@@ -421,14 +424,17 @@ export function createRenderer(canvas) {
       ctx.fillStyle = 'rgba(43,42,58,.28)';
       if (e.k === 'p') {
         ctx.fillRect(X - 5, Y - 2, 10, 3); ctx.fillRect(X - 6, Y - 1, 12, 1);
-        if (o.inv && !o.down && Math.floor(time * 14) % 2) continue;   // 맞은 뒤 깜빡
+        const ghost = o.inv && !o.down && (opt.calm || Math.floor(time * 14) % 2);   // 맞은 뒤 깜빡 (움직임 줄이기면 반투명)
+        if (ghost && !opt.calm) continue;
         const info = roster.get(o.id);
         const pose = o.down ? 'down' : o.roll ? 'roll' : o.moving ? 'walk' : 'idle';
         const phase = pose === 'walk' ? Math.floor(time * 10) % 4 : pose === 'roll' ? Math.floor(time * 24) % 4 : pose === 'idle' ? Math.floor(time * 2) % 2 : 0;
         const blink = (time + hash(o.id.length, 3)) % 3.4 < 0.12 ? 1 : 0;
         const a = aim.get(o.id);
         const s = playerSprite(info ? info.color : PAL.cloud, a ? a.fx : o.fx, pose, phase, blink, recoil.has(o.id) ? 1 : 0);
+        if (ghost) ctx.globalAlpha = 0.5;
         ctx.drawImage(s, X - s.ax, Y - s.ay);
+        ctx.globalAlpha = 1;
       } else {
         const r = MOB_R[o.type] || 6;
         const st = stop.get(o.id);
@@ -446,7 +452,7 @@ export function createRenderer(canvas) {
           if (o.state === 2) { pose = 'wind'; phase = Math.floor(tm * 10) % 2; }
           else if (o.moving) { pose = 'move'; phase = Math.floor(tm * 6) % 2; }
         }
-        const jx = fl ? (Math.random() < 0.5 ? -1 : 1) : 0;
+        const jx = fl && !opt.calm ? (Math.random() < 0.5 ? -1 : 1) : 0;
         const s = mobSprite(o.type, o.fx, pose, phase, fl);
         ctx.drawImage(s, sX - s.ax + jx, sY - s.ay);
         const max = MOBS[o.type]?.hp || 1;
@@ -590,7 +596,7 @@ export function createRenderer(canvas) {
     if (fx.big) {
       fx.big.t += dt;
       if (fx.big.t > 1.8) fx.big = null;
-      else if (Math.floor(fx.big.t * 10) % 2 || fx.big.t > 0.5) { ctx.font = '12px Galmuri11, sans-serif'; outlined(fx.big.text, VW / 2, 92, PAL.lemon); }
+      else if (opt.calm || Math.floor(fx.big.t * 10) % 2 || fx.big.t > 0.5) { ctx.font = '12px Galmuri11, sans-serif'; outlined(fx.big.text, VW / 2, 92, PAL.lemon); }
     }
     if (me && me.down) {
       ctx.fillStyle = 'rgba(29,28,40,.55)'; ctx.fillRect(0, 0, VW, VH);
@@ -617,7 +623,7 @@ export function createRenderer(canvas) {
     const bx = x + 32, bw = 86;
     ctx.fillStyle = PAL.ink; ctx.fillRect(bx, y + 4, bw, 9);
     const hpw = Math.round((bw - 2) * Math.max(0, me.hp) / (me.maxhp || 1));
-    ctx.fillStyle = me.hp / me.maxhp < 0.3 && Math.floor(time * 4) % 2 ? PAL.peach : PAL.tomato;
+    ctx.fillStyle = me.hp / me.maxhp < 0.3 && !opt.calm && Math.floor(time * 4) % 2 ? PAL.peach : PAL.tomato;
     ctx.fillRect(bx + 1, y + 5, hpw, 7);
     ctx.fillStyle = 'rgba(251,247,239,.35)'; ctx.fillRect(bx + 1, y + 5, hpw, 2);
     drawNum(ctx, `${Math.max(0, Math.ceil(me.hp))}/${me.maxhp}`, bx + bw / 2, y + 6, PAL.white, 1);
@@ -641,5 +647,5 @@ export function createRenderer(canvas) {
   }
   const drawNumWidth = (s) => s.length * 4 - 1;
 
-  return { setMap, event, draw };
+  return { setMap, event, draw, opt };
 }

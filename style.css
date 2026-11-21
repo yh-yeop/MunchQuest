@@ -78,3 +78,12 @@ button,input{font:inherit;color:inherit}
   body{padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
 }
 @media (pointer:coarse) and (orientation:portrait){ .net{display:none} }
+
+.keylist{display:grid;grid-template-columns:1fr 1fr;gap:calc(4 * var(--px)) calc(6 * var(--px))}
+.keylist label{white-space:nowrap;display:flex;align-items:center;justify-content:space-between;gap:calc(4 * var(--px))}
+.keylist button{min-width:calc(44 * var(--px));background:var(--ink2);border-color:#5a5577;color:var(--white)}
+.keylist button.wait{background:var(--lemon);color:var(--ink)}
+.check{display:flex;align-items:center;gap:calc(6 * var(--px));color:var(--cloud);line-height:1.4}
+.check input{flex:none;width:calc(10 * var(--px));height:calc(10 * var(--px));accent-color:var(--lemon)}
+.row{display:flex;gap:calc(6 * var(--px))}
+.row button{flex:1}

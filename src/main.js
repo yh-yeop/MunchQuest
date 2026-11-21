@@ -11,9 +11,10 @@ import { listenTabs, connectTabs } from './net/tabs.js';
 import { listenPeer, connectPeer } from './net/peer.js';
 import { connectWS } from './net/ws.js';
 import { SERVER_URL } from './config.js';
+import { ACTIONS, loadKeys, bindKey, codesFor, keyLabel, DEFAULT_KEYS } from './keys.js';
 
 const $ = (id) => document.getElementById(id);
-const NAME_KEY = 'munch:name', SOUND_KEY = 'munch:sound';
+const NAME_KEY = 'munch:name', SOUND_KEY = 'munch:sound', KEYS_KEY = 'munch:keys', CALM_KEY = 'munch:calm';
 const store = {
   get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
   set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* 저장 불가 환경 무시 */ } },
@@ -35,6 +36,10 @@ let joining = 0;      // 연결을 기다리는 동안 버튼을 또 누르면 �
 let fakeLag = 0;
 let debug = false;
 sound.on = store.get(SOUND_KEY) !== '0';
+const keys = loadKeys(store.get(KEYS_KEY));
+let binding = null;   // 키 바꾸기: 새 키를 기다리는 동작
+// 움직임 줄이기: 고른 적이 없으면 기기 설정(prefers-reduced-motion)을 따른다
+renderer.opt.calm = store.get(CALM_KEY) ? store.get(CALM_KEY) === '1' : !!globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
 // ---------- 화면 크기: 정수 배율 ----------
 function fit() {
@@ -202,10 +207,18 @@ const held = new Set();
 const touch = { x: 0, y: 0, atk: false, roll: false };
 addEventListener('keydown', (e) => {
   unlock();
+  if (binding) {
+    e.preventDefault();
+    if (e.code !== 'Escape' && bindKey(keys, binding, e.code)) store.set(KEYS_KEY, JSON.stringify(keys));
+    binding = null;
+    renderSettings();
+    return;
+  }
   if (e.target.tagName === 'INPUT') return;
   held.add(e.code);
+  if (!session && e.code === 'Escape' && !$('settings').hidden) openSettings(false);
   if (!session) return;
-  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'ShiftLeft', 'ShiftRight', 'F3'].includes(e.code)) e.preventDefault();
+  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'ShiftLeft', 'ShiftRight', 'F3'].includes(e.code) || ACTIONS.some(([a]) => keys[a] === e.code)) e.preventDefault();
   if (e.repeat) return;   // 아래는 켜고 끄는 키 — 누르고 있어도 한 번만
   if (e.code === 'F3' || e.code === 'Backquote') { e.preventDefault(); debug = !debug; updateHud(); }
   const n = { Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3 }[e.code];
@@ -219,13 +232,13 @@ addEventListener('keydown', (e) => {
 addEventListener('keyup', (e) => held.delete(e.code));
 addEventListener('blur', () => { held.clear(); touch.atk = touch.roll = false; });
 function readInput() {
-  const k = (...c) => c.some((x) => held.has(x));
-  let dx = (k('KeyD', 'ArrowRight') ? 1 : 0) - (k('KeyA', 'ArrowLeft') ? 1 : 0) + touch.x;
-  let dy = (k('KeyS', 'ArrowDown') ? 1 : 0) - (k('KeyW', 'ArrowUp') ? 1 : 0) + touch.y;
+  const k = (a) => codesFor(keys, a).some((x) => held.has(x));
+  let dx = (k('right') ? 1 : 0) - (k('left') ? 1 : 0) + touch.x;
+  let dy = (k('down') ? 1 : 0) - (k('up') ? 1 : 0) + touch.y;
   const m = Math.hypot(dx, dy);
   if (m > 1) { dx /= m; dy /= m; }
-  const a = k('KeyJ', 'Space', 'KeyZ') || touch.atk;
-  const r = k('KeyK', 'ShiftLeft', 'ShiftRight', 'KeyX') || touch.roll;
+  const a = k('atk') || touch.atk;
+  const r = k('roll') || touch.roll;
   return [dx, dy, a ? 1 : 0, r ? 1 : 0];
 }
 // 터치: 왼쪽 아무 데나 누르고 끌면 이동, 오른쪽 버튼으로 공격 · 구르기
@@ -258,6 +271,42 @@ for (const [id, key] of [['tAtk', 'atk'], ['tRoll', 'roll']]) {
   b.addEventListener('pointercancel', up);
   b.addEventListener('lostpointercapture', up);
 }
+
+// ---------- 설정: 키 바꾸기 · 움직임 줄이기 ----------
+function keyHint() {
+  const L = (a) => keyLabel(keys[a]);
+  return `이동 ${L('up')}${L('left')}${L('down')}${L('right')} · 공격 ${L('atk')}/Space (자동 조준) · 구르기 ${L('roll')}/Shift · 소리 M · 나가기 Esc`;
+}
+function renderSettings() {
+  const list = $('keyList');
+  list.textContent = '';
+  for (const [a, name] of ACTIONS) {
+    const row = document.createElement('label');
+    row.append(name);
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = binding === a ? '…' : keyLabel(keys[a]);
+    b.className = binding === a ? 'wait' : '';
+    b.setAttribute('aria-label', `${name}: ${keyLabel(keys[a])}. 눌러서 바꾸기`);
+    b.addEventListener('click', () => { binding = binding === a ? null : a; renderSettings(); list.querySelector('.wait')?.focus(); });
+    row.append(b);
+    list.append(row);
+  }
+  $('calm').checked = renderer.opt.calm;
+  $('keys').textContent = keyHint();
+}
+function openSettings(open) {
+  binding = null;
+  $('settings').hidden = !open;
+  $('title').querySelector('.box').hidden = open;
+  renderSettings();
+  (open ? $('keyList').querySelector('button') : $('btnSet')).focus();
+}
+$('btnSet').addEventListener('click', () => openSettings(true));
+$('setClose').addEventListener('click', () => openSettings(false));
+$('keysReset').addEventListener('click', () => { Object.assign(keys, DEFAULT_KEYS); store.set(KEYS_KEY, JSON.stringify(keys)); binding = null; renderSettings(); });
+$('calm').addEventListener('change', () => { renderer.opt.calm = $('calm').checked; store.set(CALM_KEY, renderer.opt.calm ? '1' : '0'); });
+renderSettings();
 
 // ---------- 화면 글자 ----------
 function myName() { return ($('name').value || '').trim().slice(0, 12) || '손님'; }
