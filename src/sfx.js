@@ -50,7 +50,7 @@ export function play(name, vol = 1) {
   switch (name) {
     case 'shoot': tone(980, 520, 0.06, 'square', 0.1 * vol); break;
     case 'oshoot': tone(800, 480, 0.05, 'square', 0.035 * vol); break;
-    case 'hit': noise(0.06, 0.35 * vol, 1800); tone(320, 180, 0.06, 'triangle', 0.18 * vol); break;
+    case 'hit': { const f = 300 + Math.random() * 60; noise(0.06, 0.35 * vol, 1600 + Math.random() * 500); tone(f, f * 0.55, 0.06, 'triangle', 0.18 * vol); break; }
     case 'crit': noise(0.09, 0.45 * vol, 2600); tone(700, 1400, 0.08, 'square', 0.12 * vol); break;
     case 'die': tone(520, 1040, 0.1, 'triangle', 0.25 * vol); tone(780, 1560, 0.12, 'triangle', 0.18 * vol, 0.06); noise(0.12, 0.2 * vol, 900); break;
     case 'hurt': tone(220, 90, 0.18, 'sawtooth', 0.2 * vol); noise(0.1, 0.3 * vol, 500); break;
@@ -60,6 +60,7 @@ export function play(name, vol = 1) {
     case 'spore': tone(300, 520, 0.12, 'sine', 0.08 * vol); break;
     case 'lvl': [523, 659, 784, 1047].forEach((f, i) => tone(f, f, 0.12, 'square', 0.12 * vol, i * 0.08)); break;
     case 'down': [392, 330, 262].forEach((f, i) => tone(f, f * 0.98, 0.18, 'triangle', 0.2 * vol, i * 0.15)); break;
+    case 'drop': tone(1180, 1180, 0.03, 'triangle', 0.06 * vol, 0.34); tone(1480, 1480, 0.04, 'triangle', 0.05 * vol, 0.5); break;
     case 'portal': tone(400, 1200, 0.25, 'sine', 0.15 * vol); tone(600, 1800, 0.25, 'sine', 0.08 * vol, 0.05); break;
   }
 }
@@ -71,6 +72,7 @@ export function eventSound(e) {
     case 'hit': play(e.crit ? 'crit' : 'hit', e.mine ? 1 : 0.4); break;
     case 'die': play('die'); break;
     case 'hurt': if (e.mine) play('hurt'); break;
+    case 'drop': play('drop', e.item === 'coin' ? 0.6 : 1); break;
     case 'pick': play(e.item === 'coin' ? 'coin' : 'pick'); break;
     case 'roll': play('roll'); break;
     case 'spore': play('spore', 0.6); break;

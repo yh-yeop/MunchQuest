@@ -2,7 +2,7 @@
 // 그림 파일 대신 팔레트로 직접 찍은 도트 (sprites.json). 프레임은 처음 쓸 때 한 번 그려서 캐시.
 import { TS, T, hash, tileAt, isSolid } from './map.js';
 import { PAL } from './palette.js';
-import { MOBS, ITEMS } from './data.js';
+import { MOBS, ITEMS, PLAYER } from './data.js';
 import { layoutTags } from './tags.js';
 
 export const VW = 480, VH = 270;
@@ -246,8 +246,9 @@ export function createRenderer(canvas) {
   const ctx = canvas.getContext('2d');
   ctx.imageSmoothingEnabled = false;
   let map = null, bg = null, waters = [], portals = [];
-  const fx = { shots: [], spores: [], parts: [], nums: [], drops: new Map(), flies: [], rings: [], banner: null, big: null, shake: 0, hurt: 0 };
-  const flash = new Map(), recoil = new Map(), aim = new Map();
+  const fx = { shots: [], spores: [], parts: [], nums: [], drops: new Map(), flies: [], rings: [], pops: [], pillars: [], banner: null, big: null, shake: 0, hurt: 0 };
+  // stop: 히트스톱 — 내가 맞힌 몬스터를 잠깐(0.05초, 치명타 0.09초) 그 자리 그 모습으로 멈춰 그린다. 판정과 무관한 그림만
+  const flash = new Map(), recoil = new Map(), aim = new Map(), stop = new Map();
   let lastPlayers = new Map(), lastMobs = new Map(), meId = null;
 
   function setMap(m) {
@@ -261,8 +262,8 @@ export function createRenderer(canvas) {
       const t = tileAt(m, x, y);
       if (t === T.WATER) waters.push([x, y]); else if (t === T.PORTAL) portals.push([x, y]);
     }
-    fx.shots = []; fx.spores = []; fx.parts = []; fx.nums = []; fx.drops.clear(); fx.flies = []; fx.rings = [];
-    flash.clear(); recoil.clear(); aim.clear();
+    fx.shots = []; fx.spores = []; fx.parts = []; fx.nums = []; fx.drops.clear(); fx.flies = []; fx.rings = []; fx.pops = []; fx.pillars = [];
+    flash.clear(); recoil.clear(); aim.clear(); stop.clear();
   }
 
   const burst = (x, y, n, colors, sp = 60, life = 0.4, up = 0) => {
@@ -284,6 +285,7 @@ export function createRenderer(canvas) {
         const m = lastMobs.get(e.mob);
         const x = m ? m.x : e.x, y = m ? m.y : e.y;
         flash.set(e.mob, 0.1);
+        if (e.mine && m && !stop.has(e.mob)) stop.set(e.mob, { t: e.crit ? 0.09 : 0.05, x: m.x, y: m.y });
         fx.nums.push({ x, y: y - 18, n: e.dmg, crit: e.crit, mine: e.mine, t: 0, dx: (Math.random() - 0.5) * 8 });
         burst(x, y - 6, e.crit ? 8 : 4, e.crit ? [PAL.lemon, PAL.white] : [PAL.white, PAL.cream], e.crit ? 90 : 60, 0.25);
         if (e.mine) fx.shake = Math.max(fx.shake, e.crit ? 2.5 : 1);
@@ -293,6 +295,8 @@ export function createRenderer(canvas) {
         const m = lastMobs.get(e.mob);
         const col = m && m.type === 'mushroom' ? [PAL.tomato, PAL.cream, PAL.white] : m && m.type === 'rabbit' ? [PAL.white, PAL.pink, PAL.cloud] : [PAL.sky, PAL.water3, PAL.white];
         burst(e.x, e.y - 6, 14, col, 80, 0.5, 40);
+        if (m) fx.pops.push({ type: m.type, fx: m.fx, x: e.x, y: e.y, t: 0 });
+        stop.delete(e.mob);
         fx.rings.push({ x: e.x, y: e.y - 6, t: 0, c: PAL.white, max: 0.3, r: 14 });
         fx.shake = Math.max(fx.shake, 1.5);
         lastMobs.delete(e.mob);
@@ -306,8 +310,16 @@ export function createRenderer(canvas) {
       }
       case 'lvl': {
         const p = posOf(e.who);
-        if (p) { fx.rings.push({ x: p.x, y: p.y - 10, t: 0, c: PAL.lemon, max: 0.6, r: 30 }); burst(p.x, p.y - 12, 18, [PAL.lemon, PAL.white, PAL.peach], 90, 0.8, 60); }
-        if (e.mine) fx.big = { text: `레벨 업!  Lv ${e.lvl}`, t: 0 };
+        if (p) {
+          fx.rings.push({ x: p.x, y: p.y - 10, t: 0, c: PAL.lemon, max: 0.6, r: 30 });
+          burst(p.x, p.y - 12, 18, [PAL.lemon, PAL.white, PAL.peach], 90, 0.8, 60);
+          fx.pillars.push({ id: e.who, t: 0 });
+        }
+        if (e.mine) {
+          fx.big = { text: `레벨 업!  Lv ${e.lvl}`, t: 0 };
+          if (p) fx.nums.push({ x: p.x, y: p.y - 40, label: `최대 체력 +${PLAYER.hpPerLvl} · 공격 +${PLAYER.dmgPerLvl}`, t: -0.3, dx: 0 });
+          fx.shake = Math.max(fx.shake, 2);
+        }
         break;
       }
       case 'drop': fx.drops.set(e.id, { item: e.item, x: e.x, y: e.y, fromX: e.fromX ?? e.x, fromY: e.fromY ?? e.y, t: 0 }); break;
@@ -367,15 +379,31 @@ export function createRenderer(canvas) {
     // 바닥 드롭 (내 것만 보인다)
     for (const d of fx.drops.values()) {
       d.t += dt;
-      const k = Math.min(1, d.t / 0.35);
-      const x = d.fromX + (d.x - d.fromX) * k, y = d.fromY + (d.y - d.fromY) * k - Math.sin(k * Math.PI) * 14;
-      const bob = k >= 1 ? Math.round(Math.sin(time * 4 + d.x) * 1.5) : 0;
+      // 튀어나와 크게 한 번, 작게 한 번 통통 (0.5초). 다 떨어지면 둥실둥실
+      const k = Math.min(1, d.t / 0.36), k2 = Math.min(1, Math.max(0, (d.t - 0.36) / 0.16));
+      const hop = k < 1 ? Math.sin(k * Math.PI) * 14 : Math.sin(k2 * Math.PI) * 4;
+      const x = d.fromX + (d.x - d.fromX) * k, y = d.fromY + (d.y - d.fromY) * k - hop;
+      if (k2 >= 1 && !d.landed) { d.landed = true; if (d.item !== 'coin') burst(d.x, d.y - 4, 6, [PAL.lemon, PAL.white], 40, 0.3); }
+      const bob = k2 >= 1 ? Math.round(Math.sin(time * 4 + d.x) * 1.5) : 0;
       ctx.fillStyle = 'rgba(43,42,58,.25)';
       ctx.fillRect(Math.round(d.x) - cx - 3, Math.round(d.y) - cy - 1, 6, 2);
       const s = itemSprite(d.item);
       ctx.drawImage(s, Math.round(x) - cx - s.ax, Math.round(y) - cy - s.ay - 2 + bob);
       if (k >= 1 && (time * 2 + d.x) % 1.6 < 0.12) { ctx.fillStyle = PAL.white; ctx.fillRect(Math.round(x) - cx + 2, Math.round(y) - cy - 9 + bob, 1, 1); }
     }
+
+    // 레벨 업 빛기둥 (사람 뒤)
+    for (const pl of fx.pillars) {
+      pl.t += dt;
+      const p = lastPlayers.get(pl.id);
+      if (!p || pl.t > 0.9) continue;
+      const k = pl.t / 0.9, w = Math.max(1, Math.round(10 * (1 - k))), X = Math.round(p.x) - cx, Y = Math.round(p.y) - cy;
+      const h = Math.round(Math.min(1, pl.t / 0.15) * 80);
+      ctx.fillStyle = 'rgba(255,224,102,.45)'; ctx.fillRect(X - w, Y - h, w * 2, h);
+      ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.fillRect(X - Math.max(1, w >> 1), Y - h, Math.max(1, w >> 1) * 2, h);
+      for (let i = 0; i < 3; i++) { ctx.fillStyle = i % 2 ? PAL.white : PAL.lemon; ctx.fillRect(X - 8 + Math.floor(hash(i, pl.id.length) * 16), Y - Math.floor(((pl.t * 1.5 + i / 3) % 1) * 60), 1, 2); }
+    }
+    fx.pillars = fx.pillars.filter((pl) => pl.t <= 0.9);
 
     // 사람 · 몬스터를 y 순서로
     const ents = [];
@@ -385,6 +413,7 @@ export function createRenderer(canvas) {
     for (const [k, v] of flash) { if (v - dt <= 0) flash.delete(k); else flash.set(k, v - dt); }
     for (const [k, v] of recoil) { if (v - dt <= 0) recoil.delete(k); else recoil.set(k, v - dt); }
     for (const [k, v] of aim) { if (v.t - dt <= 0) aim.delete(k); else v.t -= dt; }
+    for (const [k, v] of stop) { if (v.t - dt <= 0) stop.delete(k); else v.t -= dt; }
     for (const e of ents) {
       const o = e.o;
       const X = Math.round(o.x) - cx, Y = Math.round(o.y) - cy;
@@ -402,28 +431,41 @@ export function createRenderer(canvas) {
         ctx.drawImage(s, X - s.ax, Y - s.ay);
       } else {
         const r = MOB_R[o.type] || 6;
-        ctx.fillRect(X - r, Y - 2, r * 2, 3);
+        const st = stop.get(o.id);
+        const sX = st ? Math.round(st.x) - cx : X, sY = st ? Math.round(st.y) - cy : Y;
+        ctx.fillRect(sX - r, sY - 2, r * 2, 3);
         const fl = flash.has(o.id);
-        let pose = 'rest', phase = Math.floor(time * 3) % 2;
-        if (o.type === 'slime') { if (o.moving) { pose = 'hop'; phase = Math.floor(time * 10) % 4; } }
+        const tm = st ? st.frozen ?? (st.frozen = time) : time;   // 멈춘 동안은 그 순간의 모습 그대로
+        let pose = 'rest', phase = Math.floor(tm * 3) % 2;
+        if (o.type === 'slime') { if (o.moving) { pose = 'hop'; phase = Math.floor(tm * 10) % 4; } }
         else if (o.type === 'rabbit') {
-          if (o.state === 2) { pose = 'wind'; phase = Math.floor(time * 16) % 2; }
+          if (o.state === 2) { pose = 'wind'; phase = Math.floor(tm * 16) % 2; }
           else if (o.state === 3) { pose = 'dash'; phase = 0; }
-          else if (o.moving) { pose = 'move'; phase = Math.floor(time * 10) % 4; }
+          else if (o.moving) { pose = 'move'; phase = Math.floor(tm * 10) % 4; }
         } else if (o.type === 'mushroom') {
-          if (o.state === 2) { pose = 'wind'; phase = Math.floor(time * 10) % 2; }
-          else if (o.moving) { pose = 'move'; phase = Math.floor(time * 6) % 2; }
+          if (o.state === 2) { pose = 'wind'; phase = Math.floor(tm * 10) % 2; }
+          else if (o.moving) { pose = 'move'; phase = Math.floor(tm * 6) % 2; }
         }
         const jx = fl ? (Math.random() < 0.5 ? -1 : 1) : 0;
         const s = mobSprite(o.type, o.fx, pose, phase, fl);
-        ctx.drawImage(s, X - s.ax + jx, Y - s.ay);
+        ctx.drawImage(s, sX - s.ax + jx, sY - s.ay);
         const max = MOBS[o.type]?.hp || 1;
         if (o.hp < max) {
-          ctx.fillStyle = PAL.ink; ctx.fillRect(X - 8, Y - 22, 16, 3);
-          ctx.fillStyle = PAL.tomato; ctx.fillRect(X - 7, Y - 21, Math.max(1, Math.round(14 * o.hp / max)), 1);
+          ctx.fillStyle = PAL.ink; ctx.fillRect(sX - 8, sY - 22, 16, 3);
+          ctx.fillStyle = PAL.tomato; ctx.fillRect(sX - 7, sY - 21, Math.max(1, Math.round(14 * o.hp / max)), 1);
         }
       }
     }
+
+    // 쓰러진 몬스터: 하얗게 번쩍 → 납작해지며 사라짐 (0.2초)
+    for (const pp of fx.pops) {
+      pp.t += dt;
+      if (pp.t >= 0.2) continue;
+      const s = mobSprite(pp.type, pp.fx, 'rest', 0, true);
+      const k = Math.max(0, (pp.t - 0.05) / 0.15), w = Math.round(s.width * (1 + k * 0.6)), h = Math.max(1, Math.round(s.height * (1 - k)));
+      ctx.drawImage(s, Math.round(pp.x) - cx - Math.round(s.ax * w / s.width), Math.round(pp.y) - cy - Math.round(s.ay * h / s.height), w, h);
+    }
+    fx.pops = fx.pops.filter((pp) => pp.t < 0.2);
 
     // 탄 (보이는 것만 — 판정은 서버)
     for (const b of fx.shots) {
@@ -507,6 +549,7 @@ export function createRenderer(canvas) {
     // 피해 숫자 · 글씨
     for (const n of fx.nums) {
       n.t += dt;
+      if (n.t < 0) continue;   // 조금 늦게 뜨는 글씨
       const up = Math.min(1, n.t / 0.25) * 10 + n.t * 8;
       const x = Math.round(n.x + n.dx) - cx, y = Math.round(n.y - up) - cy;
       if (n.t > 0.9 && Math.floor(n.t * 20) % 2) continue;
