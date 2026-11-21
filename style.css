@@ -87,3 +87,20 @@ button,input{font:inherit;color:inherit}
 .check input{flex:none;width:calc(10 * var(--px));height:calc(10 * var(--px));accent-color:var(--lemon)}
 .row{display:flex;gap:calc(6 * var(--px))}
 .row button{flex:1}
+
+/* 손가락으로 누르기 좋은 크기: 화면 배율과 상관없이 실제 px 최소값 (WCAG 2.5.8 은 24px, 버튼은 32px · 구르기 44px · 공격 56px 이상) */
+@media (pointer:coarse){
+  .bar button,.box button,.box input{min-height:32px}
+  .join button{min-width:48px}
+  .pad .roll{width:max(44px,calc(38 * var(--px)));height:max(44px,calc(38 * var(--px)))}
+  .pad .atk{width:max(56px,calc(54 * var(--px)));height:max(56px,calc(54 * var(--px)))}
+  .check input{width:24px;height:24px}
+}
+
+/* 낮은 화면(폰 가로): 시작 상자가 넘치면 위가 잘리지 않고 스크롤, 간격은 좁게 */
+.title{overflow-y:auto;align-items:flex-start;touch-action:pan-y}
+.title .box{margin:auto}
+@media (max-height:400px){
+  .box{gap:4px;padding:6px 10px}
+  .box h1{line-height:1.1}
+}

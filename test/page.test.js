@@ -122,3 +122,27 @@ test('브라우저 · 폰 가로(667×375): 끌면 움직이고 막대가 보이
     srv.close();
   }
 });
+
+test('브라우저 · 작은 폰(568×320): 누르는 것은 모두 24px 넘게(버튼 32px, 구르기 44px, 공격 56px), 시작 상자는 화면 안', { skip: !chromium && 'playwright 없음', timeout: 30000 }, async () => {
+  const srv = await serveRepo();
+  const browser = await chromium.launch();
+  try {
+    const ctx = await browser.newContext({ viewport: { width: 568, height: 320 }, hasTouch: true, isMobile: true });
+    const page = await ctx.newPage();
+    await page.goto(`http://127.0.0.1:${srv.address().port}/`);
+    const sizes = (sel) => page.evaluate((sel) => [...document.querySelectorAll(sel)].filter((e) => e.offsetParent).map((e) => { const r = e.getBoundingClientRect(); return { id: e.id || e.textContent.trim(), w: r.width, h: r.height, top: r.top, bottom: r.bottom }; }), sel);
+    const title = await sizes('#title button, #title input');
+    for (const t of title) assert.ok(t.h >= 32 && t.w >= 32, `${t.id} ${t.w}×${t.h}`);
+    const box = await page.evaluate(() => { const r = document.querySelector('.box').getBoundingClientRect(); return { top: r.top, bottom: r.bottom }; });
+    assert.ok(box.top >= 0 && box.bottom <= 320, `시작 상자 ${box.top}~${box.bottom}`);
+    await page.tap('#btnSolo');
+    await page.waitForFunction(() => window.__munch.session?.client.me);
+    const hud = await sizes('#hud button');
+    for (const t of hud) assert.ok(t.h >= 32, `${t.id} ${t.w}×${t.h}`);
+    const roll = hud.find((t) => t.id === 'tRoll'), atk = hud.find((t) => t.id === 'tAtk');
+    assert.ok(roll.w >= 44 && roll.h >= 44 && atk.w >= 56 && atk.h >= 56, JSON.stringify([roll, atk]));
+  } finally {
+    await browser.close();
+    srv.close();
+  }
+});
