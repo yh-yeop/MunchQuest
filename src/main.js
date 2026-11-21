@@ -13,6 +13,7 @@ import { listenPeer, connectPeer } from './net/peer.js';
 import { connectWS } from './net/ws.js';
 import { SERVER_URL } from './config.js';
 import { $, store } from './dom.js';
+import { spriteCount } from './sprites.js';
 import { createSettings } from './settings.js';
 import { createInput } from './input.js';
 
@@ -196,7 +197,7 @@ function updateDebug() {
     `스냅샷 ${Math.round(c.snapGap)}ms · 보간 ${Math.round(c.interpDelay)}ms`,
     `되맞춤 ${c.corrections} · 대기 입력 ${c.pending.length}`,
     `맵 ${c.mapId} · 몬스터 ${c.mobs.size} · 사람 ${c.others.size + 1}`,
-    `프레임 ${cost.frame.toFixed(2)}ms (그리기 ${cost.draw.toFixed(2)})`,
+    `프레임 ${cost.frame.toFixed(2)}ms (그리기 ${cost.draw.toFixed(2)}) · 스프라이트 ${spriteCount()}`,
     session.server ? `서버 틱 ${session.server.tick} · 봇 (B)` : '',
   ].filter(Boolean).join('\n');
 }
@@ -300,4 +301,4 @@ if (params.get('room')) $('code').focus(); else $('name').focus();
 document.fonts.load('12px Galmuri11').catch(() => {}).finally(() => requestAnimationFrame(frame));
 
 // 디버그 · 자동 테스트용
-window.__munch = { cost, get session() { return session; }, hostSession, joinSession, leave, set lag(v) { fakeLag = v; } };
+window.__munch = { cost, spriteCount, get session() { return session; }, hostSession, joinSession, leave, set lag(v) { fakeLag = v; } };

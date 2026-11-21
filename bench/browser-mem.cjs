@@ -27,7 +27,7 @@ srv.listen(0, async () => {
     await cdp.send('HeapProfiler.collectGarbage');
     const h = await cdp.send('Runtime.getHeapUsage');
     const d = await cdp.send('Memory.getDOMCounters').catch(() => ({}));
-    const s = await pg.evaluate(() => { const s = window.__munch.session, c = s.client; return { tick: s.server.tick, ev: c.events.length, later: c.later.length, pend: c.pending.length, mobs: c.mobs.size, others: c.others.size, map: c.mapId, cost: +window.__munch.cost.frame.toFixed(2) }; });
+    const s = await pg.evaluate(() => { const s = window.__munch.session, c = s.client; return { sprites: window.__munch.spriteCount(), tick: s.server.tick, ev: c.events.length, later: c.later.length, pend: c.pending.length, mobs: c.mobs.size, others: c.others.size, map: c.mapId, cost: +window.__munch.cost.frame.toFixed(2) }; });
     out.push({ t, heapMB: +(h.usedSize / 1048576).toFixed(2), nodes: d.nodes, listeners: d.jsEventListeners, ...s });
     console.log(JSON.stringify(out.at(-1)));
   }

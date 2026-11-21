@@ -4,6 +4,7 @@ import { PAL } from './palette.js';
 
 // ---------- 스프라이트 캐시 ----------
 const cache = new Map();
+export const spriteCount = () => cache.size;   // 디버그 패널 (캔버스 수)
 // fn(px) 안에서 px(color, x, y, w, h)는 기준점(발밑 가운데) 기준 좌표. fx < 0 이면 좌우 뒤집어 찍는다
 export function sprite(key, w, h, ax, ay, fx, fn) {
   const k = key + '|' + fx;
