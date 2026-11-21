@@ -204,3 +204,66 @@ test('초원 지도: 입구 · 몬스터 자리가 막혀 있지 않고, 포털�
   assert.ok(getMap('meadow1').spawns.length >= 8);
   assert.ok(getMap('meadow2').spawns.some((s) => s.type === 'mushroom'));
 });
+
+// ---------- 몬스터 성격 ----------
+
+test('슬라임은 무리: 하나를 때리면 가까운 슬라임도 같은 사람을 쫓는다 (먼 슬라임 · 다른 종류는 그대로)', () => {
+  const server = new Server({ rand: seeded(5) });
+  const A = rawPlayer(server, 'A');
+  server.update();
+  const map = getMap('meadow1');
+  server.moveTo(A.p(), map.id, map.start);
+  const z = server.zone(map.id);
+  const slimes = [...z.mobs.values()].filter((m) => m.type === 'slime');
+  const m = slimes[0];
+  const near = slimes.filter((o) => o !== m && Math.hypot(o.x - m.x, o.y - m.y) < 100);
+  const far = slimes.filter((o) => o !== m && Math.hypot(o.x - m.x, o.y - m.y) >= 100);
+  assert.ok(near.length >= 1 && far.length >= 1, '시험 배치');
+  server.hitMob(z, m, A.p(), { vx: 1, vy: 0 });
+  assert.equal(m.target, A.id);
+  for (const o of near) assert.equal(o.target, A.id);
+  for (const o of far) assert.equal(o.target, null);
+  for (const o of z.mobs.values()) if (o.type !== 'slime') assert.equal(o.target, null);
+});
+
+test('아무도 안 쫓은 지 5초면 몬스터 체력이 다 차고 피해 기록이 지워진다 (남이 깎아 둔 몹을 나중에 줍지 못함)', () => {
+  const server = new Server({ rand: seeded(6) });
+  const A = rawPlayer(server, 'A');
+  server.update();
+  const map = getMap('meadow1');
+  server.moveTo(A.p(), map.id, map.start);
+  const z = server.zone(map.id);
+  const m = [...z.mobs.values()].find((o) => o.type === 'rabbit');
+  server.hitMob(z, m, A.p(), { vx: 1, vy: 0 });
+  assert.ok(m.hp < MOBS.rabbit.hp && m.dmgBy.size === 1);
+  // A는 마을로 (쫓을 사람 없음)
+  server.moveTo(A.p(), 'town', getMap('town').start);
+  const B = rawPlayer(server, 'B');   // 사냥터에 누군가 있어야 그 맵이 돈다
+  server.update();
+  server.moveTo(B.p(), map.id, { x: m.hx + 300 > map.w * TS ? m.hx - 300 : m.hx + 300, y: m.hy });
+  for (let t = 0; t < TICK_HZ * 4; t++) server.update();
+  assert.ok(m.hp < MOBS.rabbit.hp, '4초엔 아직');
+  for (let t = 0; t < TICK_HZ * 1.5; t++) server.update();
+  assert.equal(m.hp, MOBS.rabbit.hp);
+  assert.equal(m.dmgBy.size, 0);
+});
+
+test('버섯은 많이 맞으면 더 멀리 물러난다', () => {
+  const back = (hpFrac) => {
+    const server = new Server({ rand: seeded(7) });
+    const A = rawPlayer(server, 'A');
+    server.update();
+    const map = getMap('meadow2');
+    const z = server.zone(map.id);
+    const m = [...z.mobs.values()].find((o) => o.type === 'mushroom');
+    const spot = [[70, 0], [-70, 0], [0, 70], [0, -70]].map(([dx, dy]) => ({ x: m.x + dx, y: m.y + dy })).find((s) => !hitsWall(map, s.x, s.y));
+    server.moveTo(A.p(), map.id, spot);
+    m.hp = Math.round(MOBS.mushroom.hp * hpFrac);
+    m.target = A.id; m.shotT = 99;
+    const d0 = Math.hypot(m.x - spot.x, m.y - spot.y);
+    for (let t = 0; t < TICK_HZ; t++) { A.p().inv = 9; server.update(); }
+    return Math.hypot(m.x - A.p().x, m.y - A.p().y) - d0;
+  };
+  assert.ok(Math.abs(back(1)) < 1, '체력이 많으면 70px 거리를 지킨다');
+  assert.ok(back(0.2) > 15, '체력이 적으면 물러난다');
+});

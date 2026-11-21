@@ -23,6 +23,9 @@ export const MOBS = {
 // 스냅샷엔 이름 대신 이 목록의 번호를 보낸다 (새 몬스터는 끝에 붙인다)
 export const MOB_TYPES = Object.keys(MOBS);
 export const MOB_RESPAWN = 6;   // 초
+export const MOB_CALM = 5;      // 이만큼 아무도 안 때리고 쫓을 사람도 없으면 체력이 다 차고 피해 기록을 지운다 (도망갔다 와서 남이 깎은 몹을 줍지 못하게)
+export const PACK_R = 100;      // 슬라임이 맞으면 이 거리 안의 슬라임도 같이 화낸다
+export const FLEE_HP = 0.35;    // 버섯은 체력이 이만큼 아래면 더 멀리 떨어져 쏜다
 export const DROP_LIFE = 30;    // 초
 
 export const ITEMS = {

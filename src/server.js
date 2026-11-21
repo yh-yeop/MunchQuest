@@ -4,7 +4,7 @@
 // conn = { send(msg), onMessage(fn), onClose(fn), close() }
 import { getMap, portalAt, START_MAP, TS, isSolid } from './map.js';
 import { step, quant, hitsWall, lineOfSight, newBody } from './sim.js';
-import { PLAYER, MOBS, MOB_TYPES, MOB_RESPAWN, DROP_LIFE, expToNext, shareBonus } from './data.js';
+import { PLAYER, MOBS, MOB_TYPES, MOB_RESPAWN, MOB_CALM, PACK_R, FLEE_HP, DROP_LIFE, expToNext, shareBonus } from './data.js';
 import { PLAYER_COLORS } from './palette.js';
 
 export const TICK_HZ = 20;
@@ -50,7 +50,7 @@ export class Server {
         const def = MOBS[s.type];
         const mid = 'm' + (++this.nid).toString(36);
         z.mobs.set(mid, { id: mid, type: s.type, def, hx: s.x, hy: s.y, x: s.x, y: s.y, hp: def.hp, vx: 0, vy: 0, kx: 0, ky: 0, fx: 1,
-          state: 'idle', t: this.rand() * 2, stun: 0, target: null, dmgBy: new Map(), dead: 0, ax: 0, ay: 0, shotT: 1 + this.rand() * 2 });
+          state: 'idle', t: this.rand() * 2, stun: 0, target: null, dmgBy: new Map(), dead: 0, calm: 0, ax: 0, ay: 0, shotT: 1 + this.rand() * 2 });
       }
       this.zones.set(map.id, z);
     }
@@ -200,6 +200,13 @@ export class Server {
     m.kx = b.vx / d * 110; m.ky = b.vy / d * 110;
     m.stun = 0.14;
     m.target = p.id;
+    m.calm = 0;
+    // 슬라임은 무리 지어 산다: 하나가 맞으면 가까운 슬라임도 같은 사람을 쫓는다
+    if (m.def.ai === 'hop') {
+      for (const o of z.mobs.values()) {
+        if (o !== m && !o.dead && o.def.ai === 'hop' && !o.target && dist(o, m) < PACK_R) { o.target = p.id; o.calm = 0; o.state = 'rest'; o.t = 0.15 + this.rand() * 0.2; }
+      }
+    }
     if (m.state === 'wind' && m.def.ai === 'charge') { m.state = 'rest'; m.t = 0.4; }   // 맞으면 돌진 준비가 끊긴다
     z.ev.push(['hit', m.id, dmg, p.id, crit ? 1 : 0]);
     if (m.hp <= 0) this.killMob(z, m);
@@ -299,7 +306,7 @@ export class Server {
     const def = m.def;
     if (m.dead) {
       m.dead -= TDT;
-      if (m.dead <= 0) Object.assign(m, { dead: 0, hp: def.hp, x: m.hx, y: m.hy, kx: 0, ky: 0, state: 'idle', t: 1, target: null, stun: 0 });
+      if (m.dead <= 0) Object.assign(m, { dead: 0, hp: def.hp, x: m.hx, y: m.hy, kx: 0, ky: 0, state: 'idle', t: 1, target: null, stun: 0, calm: 0 });
       return;
     }
     const x0 = m.x, y0 = m.y;
@@ -318,6 +325,8 @@ export class Server {
     }
     if (Math.hypot(m.x - m.hx, m.y - m.hy) > 190) tgt = null;   // 집에서 너무 멀면 돌아간다
     m.target = tgt ? tgt.id : null;
+    if (tgt) m.calm = 0;
+    else if ((m.calm += TDT) >= MOB_CALM && (m.hp < def.hp || m.dmgBy.size)) { m.hp = def.hp; m.dmgBy.clear(); }
     if (m.stun > 0) { m.stun -= TDT; m.vx = (m.x - x0) / TDT; m.vy = (m.y - y0) / TDT; return; }
 
     m.t -= TDT;
@@ -385,9 +394,10 @@ export class Server {
         }
       } else if (tgt) {
         const d = dist(tgt, m);
+        const scared = m.hp < def.hp * FLEE_HP;   // 많이 맞으면 더 멀리서, 더 빨리 물러나며 쏜다
         m.fx = tgt.x >= m.x ? 1 : -1;
-        if (m.shotT <= 0 && d < def.aggro && lineOfSight(z.map, m.x, m.y - 6, tgt.x, tgt.y - 8)) { m.state = 'wind'; m.t = 0.45; }
-        else if (d < 56) { m.state = 'move'; toward(m.x * 2 - tgt.x, m.y * 2 - tgt.y, def.speed * 1.4); }
+        if (m.shotT <= 0 && d < def.aggro && lineOfSight(z.map, m.x, m.y - 6, tgt.x, tgt.y - 8)) { m.state = 'wind'; m.t = scared ? 0.3 : 0.45; }
+        else if (d < (scared ? 96 : 56)) { m.state = 'move'; toward(m.x * 2 - tgt.x, m.y * 2 - tgt.y, def.speed * (scared ? 2.2 : 1.4)); }
         else if (d > 100) { m.state = 'move'; toward(tgt.x, tgt.y, def.speed); }
         else m.state = 'idle';
       } else wander(def.speed);
