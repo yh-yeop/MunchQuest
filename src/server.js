@@ -18,6 +18,7 @@ export const INPUT_RATE = 60 * 1.02;
 export const INPUT_BURST = 60;
 const MAX_ELAPSED = 1000;   // 틱이 오래 멈췄다 와도(빈 방) 이만큼만 친다
 const MAX_QUEUE = 60;
+const KEYFRAME = TICK_HZ;   // 몬스터는 바뀐 것만 보내다가 1초마다 한 번 전부 (어긋나도 스스로 바로잡게)
 export const DASH_SPEED = 175, DASH_T = 0.36;   // 토끼 돌진 (경고선 길이 = 둘을 곱한 것)
 const MOB_STATE = { idle: 0, move: 1, wind: 2, dash: 3, rest: 4 };
 
@@ -76,7 +77,7 @@ export class Server {
       const at = this.spawnPoint(map);
       const p = { ...newBody(at.x, at.y), id, name: cleanName(m.name), color: PLAYER_COLORS[this.joined++ % PLAYER_COLORS.length],
         mapId: map.id, last: 0, queue: [], budget: INPUT_BURST, hp: PLAYER.hp, maxhp: PLAYER.hp, lvl: 1, exp: 0, coins: 0, bag: {},
-        inv: 0, calm: 0, down: 0, drops: new Map(), dirty: true, notes: [] };
+        inv: 0, calm: 0, down: 0, drops: new Map(), dirty: true, notes: [], needFull: true };
       this.players.set(id, p);
       this.zone(map.id);
       conn.send({ t: 'welcome', id, map: map.id, body: this.body(p), last: 0 });
@@ -106,6 +107,7 @@ export class Server {
     p.mapId = mapId;
     p.x = at.x; p.y = at.y; p.roll = 0;
     p.drops.clear();
+    p.needFull = true;
     this.zone(mapId);
     this.conns.get(p.id)?.send({ t: 'map', map: mapId, body: this.body(p), last: p.last });
     this.broadcast({ t: 'roster', players: this.roster() });
@@ -215,6 +217,7 @@ export class Server {
 
   killMob(z, m) {
     m.dead = MOB_RESPAWN;
+    m.sent = null;   // 다시 태어나면 (같은 자리 · 같은 체력이라도) 꼭 보낸다
     z.ev.push(['die', m.id, r1(m.x), r1(m.y)]);
     // 피해를 준 사람 모두가 각자 보상 (막타 · 자리 싸움이 없게)
     const who = [...m.dmgBy.keys()].map((id) => this.players.get(id)).filter((p) => p && p.mapId === z.id);
@@ -415,7 +418,7 @@ export class Server {
   // players: [id, x, y, 방향, 구르는 중, hp, 최대 hp, 레벨, 쓰러짐, 무적]
   // you: [x, y, 마지막 입력, 방향, 공격 대기, 구르기, 구르기 대기, 구르기 방향 x, y]
   sendSnapshot(z) {
-    const players = [], mobs = [], here = [];
+    const players = [], full = [], delta = [], here = [];
     for (const p of this.players.values()) {
       if (p.mapId !== z.id) continue;
       here.push(p);
@@ -425,11 +428,20 @@ export class Server {
       if (m.dead) continue;
       const row = [m.id, MOB_TYPES.indexOf(m.type), r1(m.x), r1(m.y), m.hp, MOB_STATE[m.state] || 0, m.fx];
       if (m.state === 'wind' && m.def.ai === 'charge') row.push(Math.round(Math.atan2(m.dy, m.dx) * 100) / 100);   // 돌진할 방향 (경고선)
-      mobs.push(row);
+      full.push(row);
+      const prev = m.sent;
+      if (!prev || prev.length !== row.length || row.some((v, k) => k > 1 && v !== prev[k])) delta.push(row);
+      m.sent = row;
     }
-    const base = { t: 'snap', tick: this.tick, map: z.id, players, mobs, ev: z.ev };
+    // mfull: 1 이면 mobs 가 살아 있는 몬스터 전부 (빠진 것은 없어진 것). 아니면 바뀐 것만 (빠진 것은 그대로)
+    const key = this.tick % KEYFRAME === 0;
+    const base = { t: 'snap', tick: this.tick, map: z.id, players, ev: z.ev };
     z.ev = [];
-    for (const p of here) this.conns.get(p.id)?.send({ ...base, you: [p.x, p.y, p.last, p.fx, p.cd, p.roll, p.rcd, p.rdx, p.rdy] });
+    for (const p of here) {
+      const whole = key || p.needFull;
+      p.needFull = false;
+      this.conns.get(p.id)?.send({ ...base, mobs: whole ? full : delta, mfull: whole ? 1 : 0, you: [p.x, p.y, p.last, p.fx, p.cd, p.roll, p.rcd, p.rdx, p.rdy] });
+    }
   }
 
   roster() { return [...this.players.values()].map(({ id, name, color, mapId }) => ({ id, name, color, map: mapId })); }

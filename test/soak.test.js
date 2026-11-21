@@ -125,3 +125,51 @@ test('오래 돌리기: 클라이언트 4명이 지연 80~200ms로 3분 동안 �
   if (process.env.SOAK_LOG) console.log({ maxPending, maxBuf, maxLater, maps: cs.map((s) => [...s.maps]), lvl: [...server.players.values()].map((p) => p.lvl), tick: server.tick, rtt: cs.map((s) => Math.round(s.c.rtt)) });
   assert.ok([...server.players.values()].some((p) => p.lvl > 1), '사냥이 됨');
 });
+
+test('몬스터는 바뀐 것만 보내도, 지연 150ms로 1분 사냥한 뒤 클라이언트가 보는 몬스터(목록 · 자리 · 체력 · 상태)가 서버가 보낸 것과 같다', { timeout: 30000 }, () => {
+  const clock = fakeClock();
+  const rand = seeded(31);
+  const server = new Srv({ rand: seeded(32), now: clock.now });
+  const [a, b] = localPair({ schedule: (fn) => clock.setTimeout(fn, 0) });
+  server.connect(a);
+  const c = new Client(withLatency(b, () => 150, { schedule: clock.setTimeout, now: clock.now, jitter: 0.3, rand: seeded(33) }), { name: 'c', now: clock.now });
+  let sent = 0, full = 0, rows = 0;
+  for (const conn of server.conns.values()) {
+    const s0 = conn.send.bind(conn);
+    conn.send = (m) => { if (m.t === 'snap' && m.map !== 'town') { sent++; if (m.mfull) full++; rows += m.mobs.length; } s0(m); };
+  }
+  let tickAcc = 0, inAcc = 0, flushAcc = 0, dx = 1, dy = 0, tt = 0;
+  const go = (ms, attack) => {
+    for (let i = 0; i < ms; i++) {
+      clock.advance(1);
+      tickAcc++; inAcc++; flushAcc++;
+      if (tickAcc >= 50) { tickAcc -= 50; server.update(); }
+      if (inAcc >= DT * 1000) {
+        inAcc -= DT * 1000;
+        if (c.me) {
+          if (--tt <= 0) { const ang = c.mapId === 'town' ? (rand() - 0.5) * 0.4 : rand() * Math.PI * 2; dx = Math.cos(ang); dy = Math.sin(ang); tt = 60 + rand() * 90; }
+          c.input(attack ? dx : 0, attack ? dy : 0, attack ? 1 : 0, 0);
+          c.drain();
+        }
+      }
+      if (flushAcc >= 50) { flushAcc -= 50; c.flush(); }
+    }
+  };
+  go(60000, true);
+  assert.equal(c.mapId, server.players.get(c.id).mapId);
+  // 키프레임이 아닌 때에서 서버를 멈추고, 오가던 메시지가 다 도착한 뒤 클라이언트 값 = 서버가 마지막으로 보낸 값인지
+  go(1500, false);
+  while (server.tick % 20 !== 10) go(1, false);
+  clock.advance(1000);
+  const z = server.zone(c.mapId);
+  const alive = [...z.mobs.values()].filter((m) => !m.dead);
+  assert.equal(c.mobs.size, alive.length, '몬스터 수');
+  for (const m of alive) {
+    const o = c.mobs.get(m.id);
+    assert.ok(o, `${m.id} 가 클라이언트에 있음`);
+    const [, , x, y, hp, state, fx] = m.sent;
+    assert.deepEqual([o.lx, o.ly, o.hp, o.state, o.sfx], [x, y, hp, state, fx], m.id);
+  }
+  assert.ok(sent > 500 && full > 0 && full < sent / 10, `${sent} 중 전부 ${full}`);
+  assert.ok(rows / sent < alive.length, `바뀐 것만 보냄 (스냅샷당 ${(rows / sent).toFixed(1)}줄 / 몬스터 ${alive.length})`);
+});

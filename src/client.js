@@ -119,7 +119,15 @@ export class Client {
       if (state === 2 && o.state !== 2 && o.state !== undefined) this.emit({ k: 'wind', mob: id, type, x, y });   // 공격 준비 (경고 표시 · 소리)
       Object.assign(o, { lx: x, ly: y, hp, state, sfx: fx, dir: dir ?? null });
     }
-    for (const id of [...this.mobs.keys()]) if (!alive.has(id)) this.mobs.delete(id);
+    if (m.mfull !== 0) { for (const id of [...this.mobs.keys()]) if (!alive.has(id)) this.mobs.delete(id); }
+    else {
+      // 바뀐 것만 온 스냅샷: 안 온 몬스터는 그 자리에 그대로 (보간 버퍼에도 같은 자리를 넣어 오래 멈췄다 움직일 때 미끄러지지 않게)
+      for (const [id, o] of this.mobs) {
+        if (alive.has(id)) continue;
+        o.buf.push({ t, x: o.lx, y: o.ly });
+        while (o.buf.length > 2 && o.buf[1].t < t - 1000) o.buf.shift();
+      }
+    }
     for (const e of m.ev || []) this.onWorldEvent(e, t);
     // 화면이 안 그려지는 동안(탭이 뒤로 감)에도 늦춘 사건이 끝없이 쌓이지 않게 스냅샷마다 내보낸다
     this.release(t);
