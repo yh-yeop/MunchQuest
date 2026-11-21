@@ -146,3 +146,39 @@ test('브라우저 · 작은 폰(568×320): 누르는 것은 모두 24px 넘게(
     srv.close();
   }
 });
+
+test('브라우저 · 설정을 키보드만으로: 탭 · 엔터로 열고, 바꾸는 동안 초점이 그 버튼에 남고, 낭독용 한 줄이 바뀐 키를 알리고, Esc 로 닫으면 설정 버튼으로 돌아온다', { skip: !chromium && 'playwright 없음', timeout: 30000 }, async () => {
+  const srv = await serveRepo();
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
+    await page.goto(`http://127.0.0.1:${srv.address().port}/`);
+    await page.evaluate(() => localStorage.clear());
+    await page.reload();
+    await page.focus('#btnSet');
+    await page.keyboard.press('Enter');
+    const first = await page.evaluate(() => document.activeElement.dataset.action);
+    assert.equal(first, 'up', '열면 첫 키 버튼에 초점');
+    for (let i = 0; i < 4; i++) await page.keyboard.press('Tab');   // 위 → 아래 → 왼쪽 → 오른쪽 → 공격
+    assert.equal(await page.evaluate(() => document.activeElement.dataset.action), 'atk');
+    await page.keyboard.press('Enter');
+    let st = await page.evaluate(() => ({ status: document.getElementById('setStatus').textContent, focus: document.activeElement.dataset.action, live: document.getElementById('setStatus').getAttribute('aria-live') }));
+    assert.match(st.status, /공격: 새 키를 누르세요/);
+    assert.equal(st.focus, 'atk');
+    assert.equal(st.live, 'polite');
+    await page.keyboard.press('KeyK');   // 구르기 키 → 맞바꿈
+    st = await page.evaluate(() => ({ status: document.getElementById('setStatus').textContent, focus: document.activeElement.dataset.action, label: document.activeElement.getAttribute('aria-label') }));
+    assert.match(st.status, /공격: K \(구르기는 J로 맞바꿈\)/);
+    assert.equal(st.focus, 'atk', '바꾼 뒤에도 초점이 그 버튼');
+    assert.match(st.label, /공격: K/);
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('KeyM');
+    assert.match(await page.evaluate(() => document.getElementById('setStatus').textContent), /M 키는 쓸 수 없어요/);
+    await page.keyboard.press('Escape');
+    assert.equal(await page.evaluate(() => document.getElementById('settings').hidden), true);
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'btnSet');
+  } finally {
+    await browser.close();
+    srv.close();
+  }
+});
