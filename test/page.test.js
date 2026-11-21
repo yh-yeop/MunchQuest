@@ -69,3 +69,56 @@ test('브라우저: 혼자 테스트가 오류 없이 뜨고, 디버그 패널�
     srv.close();
   }
 });
+
+test('브라우저 · 폰 가로(667×375): 끌면 움직이고 막대가 보이며, 공격 버튼을 누르면 쏘고, 버튼이 체력 칸 · 위 막대를 가리지 않는다', { skip: !chromium && 'playwright 없음', timeout: 30000 }, async () => {
+  const srv = await serveRepo();
+  const browser = await chromium.launch();
+  try {
+    const ctx = await browser.newContext({ viewport: { width: 667, height: 375 }, hasTouch: true, isMobile: true });
+    const page = await ctx.newPage();
+    const errs = [];
+    page.on('pageerror', (e) => errs.push(String(e)));
+    await page.goto(`http://127.0.0.1:${srv.address().port}/`);
+    await page.tap('#btnSolo');
+    await page.waitForFunction(() => window.__munch.session?.client.me);
+    const x0 = await page.evaluate(() => window.__munch.session.client.me.x);
+    const cdp = await ctx.newCDPSession(page);
+    const touch = (type, pts) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts });
+    await touch('touchStart', [{ x: 120, y: 240, id: 1 }]);
+    for (let i = 1; i <= 5; i++) await touch('touchMove', [{ x: 120 + i * 10, y: 240, id: 1 }]);
+    await page.waitForTimeout(400);
+    const mid = await page.evaluate(() => ({ x: window.__munch.session.client.me.x, stick: !document.getElementById('stick').hidden }));
+    // 끄는 동안 두 번째 손가락으로 공격 버튼
+    const atk = await page.evaluate(() => { const b = document.getElementById('tAtk').getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; });
+    await page.evaluate(() => {
+      const s = window.__munch.session, fire = s.server.fire.bind(s.server);
+      window.__fired = 0;
+      s.server.fire = (p, tg) => { if (p.id === s.client.id) window.__fired++; return fire(p, tg); };
+    });
+    await touch('touchStart', [{ x: 170, y: 240, id: 1 }, { x: atk.x, y: atk.y, id: 2 }]);
+    await page.waitForTimeout(500);
+    const fired = await page.evaluate(() => window.__fired);
+    await touch('touchEnd', []);
+    await page.waitForTimeout(100);
+    const end = await page.evaluate(() => ({ stick: !document.getElementById('stick').hidden }));
+    const boxes = await page.evaluate(() => {
+      const b = (el) => { const r = el.getBoundingClientRect(); return { x0: r.left, x1: r.right, y0: r.top, y1: r.bottom }; };
+      const cv = b(document.getElementById('screen'));
+      const k = (cv.x1 - cv.x0) / 480;
+      // 체력 칸: 480×270 기준 (6, 240) 122×24
+      const hp = { x0: cv.x0 + 6 * k, x1: cv.x0 + 128 * k, y0: cv.y0 + 240 * k, y1: cv.y0 + 264 * k };
+      return { atk: b(document.getElementById('tAtk')), roll: b(document.getElementById('tRoll')), bar: b(document.querySelector('.bar')), hp };
+    });
+    const hit = (a, b) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+    assert.ok(mid.x > x0 + 10, `움직임 ${x0} → ${mid.x}`);
+    assert.ok(mid.stick, '막대 보임');
+    assert.ok(!end.stick, '손 떼면 막대 숨김');
+    assert.ok(fired >= 1, `서버가 받은 발사 ${fired}`);
+    for (const k of ['atk', 'roll']) for (const o of ['bar', 'hp']) assert.ok(!hit(boxes[k], boxes[o]), `${k} 버튼이 ${o} 를 가림`);
+    assert.ok(boxes.atk.x1 <= 667 && boxes.atk.y1 <= 375, '공격 버튼이 화면 안');
+    assert.deepEqual(errs, []);
+  } finally {
+    await browser.close();
+    srv.close();
+  }
+});
