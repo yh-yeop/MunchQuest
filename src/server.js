@@ -3,16 +3,20 @@
 // 위치 · 피해 · 드롭 · 경험치는 전부 여기서 정한다. 클라이언트는 입력만 보낸다.
 // conn = { send(msg), onMessage(fn), onClose(fn), close() }
 import { getMap, portalAt, START_MAP, TS, isSolid } from './map.js';
-import { step, quant, hitsWall, lineOfSight, newBody, DT } from './sim.js';
+import { step, quant, hitsWall, lineOfSight, newBody } from './sim.js';
 import { PLAYER, MOBS, MOB_RESPAWN, DROP_LIFE, expToNext, shareBonus } from './data.js';
 import { PLAYER_COLORS } from './palette.js';
 
 export const TICK_HZ = 20;
 const TDT = 1 / TICK_HZ;
-const MAX_INPUTS_PER_TICK = 8;   // 밀린 입력도 한 틱에 이만큼만
-// 입력 예산: 클라이언트는 1/60초마다 입력 하나 → 틱마다 3개. 늦게 · 몰려 와도 밀리지 않게 20% 여유를 주고
-// 남은 예산은 MAX_INPUTS_PER_TICK 까지만 모아 둔다. 입력을 더 자주 보내도 이 이상 빨리 걷거나 쏘지 못한다 (속도 조작 방지)
-export const INPUT_BUDGET_PER_TICK = (1 / DT / TICK_HZ) * 1.2;
+// 입력 예산 (속도 · 연사 조작 방지): 클라이언트는 1/60초마다 입력 하나. 예산은 틱 수가 아니라 실제로 흐른 시간만큼
+// 초당 60 × 1.02개씩 차서 입력을 아무리 자주 보내도 정상의 1.02배 이상 빨리 걷거나 쏘지 못한다.
+// 2% 여유는 클라이언트 시계가 조금 빠른 경우용 (0.1% 빠른 시계로 10분 걸어도 밀리지 않음).
+// 시간 기준이라 서버 틱이 늦거나 흔들려도(Durable Object 타이머, 뒤로 간 방장 탭) 정상 입력이 밀리지 않는다.
+// 남은 예산은 1초치까지 모아 둔다: 와이파이가 1초까지 끊겼다 한꺼번에 와도 바로 처리 (대기열 최대와 같음)
+export const INPUT_RATE = 60 * 1.02;
+export const INPUT_BURST = 60;
+const MAX_ELAPSED = 1000;   // 틱이 오래 멈췄다 와도(빈 방) 이만큼만 친다
 const MAX_QUEUE = 60;
 const MOB_STATE = { idle: 0, move: 1, wind: 2, dash: 3, rest: 4 };
 
@@ -21,7 +25,8 @@ const r1 = (v) => Math.round(v * 10) / 10;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 
 export class Server {
-  constructor({ maxPlayers = 30, rand = Math.random } = {}) {
+  // now: 입력 예산에 쓰는 시계(ms). 실제 서버는 진짜 시계를 넘긴다. 없으면 틱마다 1/20초씩 가는 가짜 시계 (테스트 · 결정적)
+  constructor({ maxPlayers = 30, rand = Math.random, now = null } = {}) {
     this.players = new Map();   // id → 플레이어
     this.conns = new Map();
     this.zones = new Map();     // 맵 id → { map, mobs, bullets, spores, ev }
@@ -31,6 +36,9 @@ export class Server {
     this.pid = 0;
     this.maxPlayers = maxPlayers;
     this.rand = rand;
+    this.now = now || (() => this.tick * 1000 / TICK_HZ);
+    this.lastT = this.now();
+    this.elapsed = 0;
   }
 
   zone(id) {
@@ -66,7 +74,7 @@ export class Server {
       const map = getMap(START_MAP);
       const at = this.spawnPoint(map);
       const p = { ...newBody(at.x, at.y), id, name: cleanName(m.name), color: PLAYER_COLORS[this.joined++ % PLAYER_COLORS.length],
-        mapId: map.id, last: 0, queue: [], budget: MAX_INPUTS_PER_TICK, hp: PLAYER.hp, maxhp: PLAYER.hp, lvl: 1, exp: 0, coins: 0, bag: {},
+        mapId: map.id, last: 0, queue: [], budget: INPUT_BURST, hp: PLAYER.hp, maxhp: PLAYER.hp, lvl: 1, exp: 0, coins: 0, bag: {},
         inv: 0, calm: 0, down: 0, drops: new Map(), dirty: true, notes: [] };
       this.players.set(id, p);
       this.zone(map.id);
@@ -104,6 +112,9 @@ export class Server {
 
   update() {
     this.tick++;
+    const t = this.now();
+    this.elapsed = Math.min(MAX_ELAPSED, Math.max(0, t - this.lastT));
+    this.lastT = t;
     for (const p of this.players.values()) this.updatePlayer(p);
     const active = new Set();
     for (const p of this.players.values()) active.add(p.mapId);
@@ -119,7 +130,7 @@ export class Server {
   }
 
   updatePlayer(p) {
-    p.budget = Math.min(MAX_INPUTS_PER_TICK, p.budget + INPUT_BUDGET_PER_TICK);
+    p.budget = Math.min(INPUT_BURST, p.budget + this.elapsed / 1000 * INPUT_RATE);
     if (p.down > 0) {
       // 쓰러진 동안 온 입력은 확인만 하고 버린다
       for (const i of p.queue) p.last = Math.max(p.last, i.seq);

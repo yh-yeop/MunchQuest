@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Server, TICK_HZ } from '../src/server.js';
+import { Server, TICK_HZ, INPUT_BURST } from '../src/server.js';
 import { Client, sample } from '../src/client.js';
 import { localPair } from '../src/net/local.js';
 import { withLatency } from '../src/net/latency.js';
@@ -144,7 +144,9 @@ test('서버는 이상한 입력을 걸러낸다 (범위 밖 값 · 밀린 입�
   assert.ok(p.queue.length <= 60);
   const x1 = p.x;
   server.update();
-  assert.ok(p.x - x1 <= 8 * 72 / 60 + 1e-9, '한 틱에 입력 8개까지만');
+  assert.ok(p.x - x1 <= INPUT_BURST * 72 / 60 + 1e-9, '한 틱에 모아 둔 예산(1초치)까지만');
+  server.update();
+  assert.ok(p.x - x1 <= (INPUT_BURST + 3.06) * 72 / 60 + 1e-9, '다음 틱엔 흐른 시간만큼만');
 });
 
 test('가짜 지연을 걸어도 꽉 찬 채널이면 끊김보다 꽉 참 알림이 먼저 온다', () => {

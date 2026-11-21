@@ -26,7 +26,7 @@ export default {
 
 export class Room {
   constructor(state, env) {
-    this.server = new Server();
+    this.server = new Server({ now: () => Date.now() });   // Worker 의 시계는 I/O · 타이머 사이에만 가지만 틱 간격 재기엔 충분
     this.timer = null;
   }
 

@@ -112,7 +112,7 @@ const clientEvents = (e) => {
 function hostSession(kind, room) {
   if (session) return;
   joining++;
-  const server = new Server();
+  const server = new Server({ now: () => performance.now() });
   const closers = [startTicker(() => server.update(), TICK_HZ)];
   const [a, b] = localPair();
   server.connect(a);

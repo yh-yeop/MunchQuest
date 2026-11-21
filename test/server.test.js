@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Server, TICK_HZ, INPUT_BUDGET_PER_TICK } from '../src/server.js';
+import { Server, TICK_HZ, INPUT_RATE, INPUT_BURST } from '../src/server.js';
 import { Client } from '../src/client.js';
 import { localPair } from '../src/net/local.js';
 import { SPEED, ATK_CD, ROLL_T, hitsWall } from '../src/sim.js';
@@ -32,26 +32,40 @@ function besideMob(z, m, d = 28) {
 
 // ---------- 입력 검증 · 속도 조작 ----------
 
-test('입력을 정상보다 훨씬 자주 보내도 걷는 속도 · 연사 속도는 정상의 1.2배를 넘지 못한다', () => {
+test('입력을 정상보다 훨씬 자주 보내도 걷는 속도 · 연사 속도는 정상의 1.02배를 넘지 못한다', () => {
   const server = new Server({ rand: seeded(1) });
   const A = rawPlayer(server, 'A');
   server.update();
   const p = A.p();
   p.x = 6 * TS; p.y = 15 * TS;   // 마을 가운데 길 서쪽 끝에서 동쪽으로 (길게 트여 있음)
   const x0 = p.x;
-  const secs = 2;
+  const cheat = () => { A.send(Array.from({ length: 8 }, () => ({ dx: 1, a: 1 }))); server.update(); };   // 틱마다 8개 = 초당 160개 (정상은 60개)
   A.got.length = 0;
-  for (let t = 0; t < TICK_HZ * secs; t++) {
-    A.send(Array.from({ length: 8 }, () => ({ dx: 1, a: 1 })));   // 틱마다 8개 = 초당 160개 (정상은 60개)
-    server.update();
-  }
-  const burst = 8;   // 쉬는 동안 모아 둔 예산
-  const maxInputs = burst + INPUT_BUDGET_PER_TICK * TICK_HZ * secs;
+  const secs = 2;
+  for (let t = 0; t < TICK_HZ * secs; t++) cheat();
+  // 처음 2초: 모아 둔 1초치 + 흐른 시간만큼
+  const maxInputs = INPUT_BURST + INPUT_RATE * secs;
   assert.ok(p.x - x0 <= maxInputs * SPEED / 60 + 1e-9, `${(p.x - x0).toFixed(1)}px`);
-  assert.ok(p.x - x0 <= SPEED * secs * 1.2 + burst * SPEED / 60 + 1e-9);
   const shots = A.got.filter((m) => m.t === 'snap').flatMap((m) => m.ev).filter((e) => e[0] === 'shot').length;
   assert.ok(shots <= Math.ceil(maxInputs / ATK_CD), `${shots}발`);
+  // 모아 둔 예산을 다 쓴 뒤 20초 동안: 처리한 입력이 정상(초당 60개)의 1.02배 이내.
+  // 처리한 입력 수 = 틱마다 같은 자리에서 출발해 걸은 거리 ÷ 입력 하나의 거리 (넘친 입력은 seq 를 건너뛰어 p.last 로는 못 셈)
+  for (let t = 0; t < TICK_HZ * 3; t++) cheat();
+  let walked = 0;
+  for (let t = 0; t < TICK_HZ * 20; t++) { p.x = x0; p.y = 15 * TS; p.roll = 0; cheat(); walked += p.x - x0; }
+  const rate = walked / (SPEED / 60) / 20 / 60;
+  assert.ok(rate <= 1.02 + 1e-9, `${rate.toFixed(4)}배`);
+  assert.ok(rate > 1.01, '정상 속도는 다 받음');
 });
+
+// 정상 클라이언트: 실제 시간으로 1/60초마다 입력 하나를 만들어 둔다. flush() 하면 그동안 만든 것을 한 묶음으로 보낸다
+function steadyInputs(A) {
+  let made = 0, sent = 0;
+  return {
+    upTo(ms) { made = Math.floor(ms * 60 / 1000); },
+    flush() { if (made > sent) { A.send(Array.from({ length: made - sent }, (_, i) => ({ dx: (sent + i) % 120 < 60 ? 1 : -1 }))); sent = made; } },
+  };
+}
 
 test('정상 속도(1/60초마다 입력 하나)의 입력은 밀리지 않고 그대로 처리된다', () => {
   const server = new Server({ rand: seeded(1) });
@@ -62,9 +76,41 @@ test('정상 속도(1/60초마다 입력 하나)의 입력은 밀리지 않고 �
     if (t % 10 === 3) continue;
     A.send(Array.from({ length: t % 10 === 4 ? 6 : 3 }, () => ({ dx: t % 40 < 20 ? 1 : -1 })));
     server.update();
+    assert.equal(A.p().queue.length, 0, `${t}틱: 대기열이 비어 있음`);
   }
+});
+
+test('서버 틱이 늦거나 흔들려도 (Durable Object 타이머 · 뒤로 간 방장 탭) 정상 입력은 밀리지 않는다', () => {
+  let clock = 0;
+  const server = new Server({ rand: seeded(1), now: () => clock });
+  const A = rawPlayer(server, 'A');
+  const r = seeded(2);
+  const input = steadyInputs(A);
   server.update();
-  assert.equal(A.p().queue.length, 0, '대기열이 비어 있음');
+  // 틱 간격: 45~60ms 흔들림, 가끔 120ms, 중간 10초는 1초에 한 번 (뒤로 간 탭의 타이머)
+  for (let t = 0; clock < 40000; t++) {
+    const gap = clock > 15000 && clock < 25000 ? 1000 : r() < 0.03 ? 120 : 45 + r() * 15;
+    for (let k = 0; k < gap; k += 50) { input.upTo(clock + Math.min(gap, k + 50)); input.flush(); }   // 입력은 20Hz 로 계속 도착
+    clock += gap;
+    server.update();
+    // 느린 틱 1초 동안엔 남는 예산이 모이지 않아 입력 하나가 한 틱 기다릴 수는 있다. 쌓이지만 않으면 됨
+    // (틱 기준 예산이었다면 1초 틱에서 대기열이 꽉 차고 입력을 버렸다)
+    assert.ok(A.p().queue.length <= 1, `${clock.toFixed(0)}ms: 대기열 ${A.p().queue.length}`);
+  }
+});
+
+test('와이파이가 1초 가까이 끊겼다가 입력이 한꺼번에 와도 바로 처리해서 뒤처지지 않는다', () => {
+  const server = new Server({ rand: seeded(1) });
+  const A = rawPlayer(server, 'A');
+  const input = steadyInputs(A);
+  server.update();
+  for (let t = 1; t <= 400; t++) {
+    input.upTo(t * 50);
+    const stalled = t % 100 >= 40 && t % 100 < 58;   // 5초마다 0.9초 끊김
+    if (!stalled) input.flush();
+    server.update();
+    if (!stalled) assert.equal(A.p().queue.length, 0, `${t}틱: 대기열이 비어 있음`);
+  }
 });
 
 test('이상한 메시지는 무시하고, hello 전 입력 · 두 번째 hello 는 받지 않는다', () => {
