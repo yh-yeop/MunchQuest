@@ -7,6 +7,7 @@ import { layoutTags } from './tags.js';
 
 export const VW = 480, VH = 270;
 const MOB_R = { slime: 6, rabbit: 6, mushroom: 7 };
+const DASH_LEN = 175 * 0.36 + 6;   // 서버 DASH_SPEED × DASH_T + 몸 반지름 (server.js 를 부르면 그림 쪽에 서버 코드가 딸려 옴)
 
 // ---------- 스프라이트 캐시 ----------
 const cache = new Map();
@@ -407,6 +408,17 @@ export function createRenderer(canvas) {
       for (let i = 0; i < 3; i++) { ctx.fillStyle = i % 2 ? PAL.white : PAL.lemon; ctx.fillRect(X - 8 + Math.floor(hash(i, pl.id.length) * 16), Y - Math.floor(((pl.t * 1.5 + i / 3) % 1) * 60), 1, 2); }
     }
     fx.pillars = fx.pillars.filter((pl) => pl.t <= 0.9);
+
+    // 토끼 돌진 경고선 (바닥, 사람 · 몬스터 아래): 움찔하는 동안 갈 길에 점선
+    for (const m of view.mobs) {
+      if (m.type !== 'rabbit' || m.state !== 2 || m.dir == null) continue;
+      const ux = Math.cos(m.dir), uy = Math.sin(m.dir), on = opt.calm || Math.floor(time * 12) % 2;
+      for (let d = 10; d <= DASH_LEN; d += 6) {
+        const X = Math.round(m.x + ux * d) - cx, Y = Math.round(m.y + uy * d) - cy;
+        ctx.fillStyle = PAL.ink; ctx.fillRect(X - 1, Y - 1, 4, 3);
+        ctx.fillStyle = on ? PAL.tomato : PAL.peach; ctx.fillRect(X, Y, 2, 1);
+      }
+    }
 
     // 사람 · 몬스터를 y 순서로
     const ents = [];

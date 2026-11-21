@@ -18,6 +18,7 @@ export const INPUT_RATE = 60 * 1.02;
 export const INPUT_BURST = 60;
 const MAX_ELAPSED = 1000;   // 틱이 오래 멈췄다 와도(빈 방) 이만큼만 친다
 const MAX_QUEUE = 60;
+export const DASH_SPEED = 175, DASH_T = 0.36;   // 토끼 돌진 (경고선 길이 = 둘을 곱한 것)
 const MOB_STATE = { idle: 0, move: 1, wind: 2, dash: 3, rest: 4 };
 
 const cleanName = (s) => (typeof s === 'string' ? s.replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 12) : '') || '손님';
@@ -363,9 +364,9 @@ export class Server {
     } else if (def.ai === 'charge') {
       // 다가와서 움찔(준비) → 곧게 돌진 → 숨 고르기
       if (m.state === 'wind') {
-        if (m.t <= 0) { m.state = 'dash'; m.t = 0.36; }
+        if (m.t <= 0) { m.state = 'dash'; m.t = DASH_T; }
       } else if (m.state === 'dash') {
-        if (!this.moveMob(z, m, m.dx * 175 * TDT, m.dy * 175 * TDT)) m.t = 0;
+        if (!this.moveMob(z, m, m.dx * DASH_SPEED * TDT, m.dy * DASH_SPEED * TDT)) m.t = 0;
         if (m.t <= 0) { m.state = 'rest'; m.t = 0.8; }
       } else if (tgt) {
         const d = dist(tgt, m);
@@ -410,7 +411,7 @@ export class Server {
   }
 
   // 스냅샷: 모두에게 같은 부분(다른 사람은 보간용 반올림 좌표 · 보이는 상태만) + 받는 사람마다 자기 몸 상태(you, 되맞춤용 정확한 값)
-  // mobs: [id, 종류 번호(MOB_TYPES), x, y, hp, 상태, 방향]
+  // mobs: [id, 종류 번호(MOB_TYPES), x, y, hp, 상태, 방향, (토끼가 움찔하는 동안만) 돌진 각도]
   // players: [id, x, y, 방향, 구르는 중, hp, 최대 hp, 레벨, 쓰러짐, 무적]
   // you: [x, y, 마지막 입력, 방향, 공격 대기, 구르기, 구르기 대기, 구르기 방향 x, y]
   sendSnapshot(z) {
@@ -422,7 +423,9 @@ export class Server {
     }
     for (const m of z.mobs.values()) {
       if (m.dead) continue;
-      mobs.push([m.id, MOB_TYPES.indexOf(m.type), r1(m.x), r1(m.y), m.hp, MOB_STATE[m.state] || 0, m.fx]);
+      const row = [m.id, MOB_TYPES.indexOf(m.type), r1(m.x), r1(m.y), m.hp, MOB_STATE[m.state] || 0, m.fx];
+      if (m.state === 'wind' && m.def.ai === 'charge') row.push(Math.round(Math.atan2(m.dy, m.dx) * 100) / 100);   // 돌진할 방향 (경고선)
+      mobs.push(row);
     }
     const base = { t: 'snap', tick: this.tick, map: z.id, players, mobs, ev: z.ev };
     z.ev = [];

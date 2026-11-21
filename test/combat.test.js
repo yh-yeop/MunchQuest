@@ -267,3 +267,29 @@ test('버섯은 많이 맞으면 더 멀리 물러난다', () => {
   assert.ok(Math.abs(back(1)) < 1, '체력이 많으면 70px 거리를 지킨다');
   assert.ok(back(0.2) > 15, '체력이 적으면 물러난다');
 });
+
+test('토끼가 움찔하는 동안만 스냅샷에 돌진 방향이 실리고, 실제로 그 방향으로 돈다', () => {
+  const server = new Server({ rand: seeded(8) });
+  const A = rawPlayer(server, 'A');
+  server.update();
+  const map = getMap('meadow1');
+  const z = server.zone(map.id);
+  const m = [...z.mobs.values()].find((o) => o.type === 'rabbit');
+  const spot = [[50, 0], [-50, 0], [0, 50], [0, -50]].map(([dx, dy]) => ({ x: m.x + dx, y: m.y + dy })).find((s) => !hitsWall(map, s.x, s.y));
+  server.moveTo(A.p(), map.id, spot);
+  let dir = null, seenWithoutWind = false, start = null;
+  for (let t = 0; t < TICK_HZ * 3 && !start; t++) {
+    A.p().inv = 9;
+    server.update();
+    const row = A.got.filter((g) => g.t === 'snap').at(-1).mobs.find((r) => r[0] === m.id);
+    if (!row) continue;
+    if (row[5] === 2) dir = row[7];
+    else if (row.length > 7) seenWithoutWind = true;
+    if (row[5] === 3 && dir != null && !start) start = { x: m.x, y: m.y };
+  }
+  assert.ok(dir != null, '움찔함');
+  assert.ok(!seenWithoutWind, '다른 때엔 안 실림');
+  for (let t = 0; t < 4; t++) server.update();
+  const a = Math.atan2(m.y - start.y, m.x - start.x);
+  assert.ok(Math.abs(a - dir) < 0.1, `${a} vs ${dir}`);
+});

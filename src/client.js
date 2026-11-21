@@ -109,14 +109,14 @@ export class Client {
     }
     for (const id of [...this.others.keys()]) if (!seen.has(id)) this.others.delete(id);
     const alive = new Set();
-    for (const [id, kind, x, y, hp, state, fx] of m.mobs) {
+    for (const [id, kind, x, y, hp, state, fx, dir] of m.mobs) {
       const type = MOB_TYPES[kind];
       alive.add(id);
       let o = this.mobs.get(id);
       if (!o) { o = { buf: [], x, y, type, fx }; this.mobs.set(id, o); }
       o.buf.push({ t, x, y });
       while (o.buf.length > 2 && o.buf[1].t < t - 1000) o.buf.shift();
-      Object.assign(o, { lx: x, ly: y, hp, state, sfx: fx });
+      Object.assign(o, { lx: x, ly: y, hp, state, sfx: fx, dir: dir ?? null });
     }
     for (const id of [...this.mobs.keys()]) if (!alive.has(id)) this.mobs.delete(id);
     for (const e of m.ev || []) this.onWorldEvent(e, t);
@@ -250,7 +250,7 @@ export class Client {
       const mx = s.x - o.x;
       o.moving = Math.abs(mx) + Math.abs(s.y - o.y) > 0.05;
       o.x = s.x; o.y = s.y;
-      mobs.push({ id, type: o.type, x: o.x, y: o.y, hp: o.hp, state: o.state, fx: o.sfx || 1, moving: o.moving });
+      mobs.push({ id, type: o.type, x: o.x, y: o.y, hp: o.hp, state: o.state, fx: o.sfx || 1, moving: o.moving, dir: o.dir });
     }
     return { players, mobs };
   }
