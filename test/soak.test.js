@@ -8,8 +8,10 @@ test('스냅샷: 다른 사람 좌표는 반올림, 내 몸 상태(you)는 나�
   const { server } = run(4, { ticks: 40 });
   const got = new Map();
   for (const [id, c] of server.conns) c.send = (m) => { if (m.t === 'snap') got.set(id, m); };
+  for (const p of server.players.values()) p.needFull = true;   // 전부 오는 스냅샷으로 본다
   server.update();
   for (const [id, snap] of got) {
+    assert.equal(snap.full, 1);
     const p = server.players.get(id);
     assert.deepEqual(snap.you, [p.x, p.y, p.last, p.fx, p.cd, p.roll, p.rcd, p.rdx, p.rdy]);
     for (const row of snap.players) {
@@ -126,7 +128,7 @@ test('몬스터는 바뀐 것만 보내도, 지연 150ms로 1분 사냥한 뒤 �
   let sent = 0, full = 0, rows = 0;
   for (const conn of server.conns.values()) {
     const s0 = conn.send.bind(conn);
-    conn.send = (m) => { if (m.t === 'snap' && m.map !== 'town') { sent++; if (m.full) full++; rows += m.mobs.length; } s0(m); };
+    conn.send = (m) => { if (m.t === 'snap' && m.map !== 'town') { sent++; if (m.full) full++; rows += (m.mobs || []).length; } s0(m); };
   }
   let tickAcc = 0, inAcc = 0, flushAcc = 0, dx = 1, dy = 0, tt = 0;
   const go = (ms, attack) => {

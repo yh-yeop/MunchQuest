@@ -30,7 +30,7 @@ test('입력을 정상보다 훨씬 자주 보내도 걷는 속도 · 연사 속
   // 처음 2초: 모아 둔 1초치 + 흐른 시간만큼
   const maxInputs = INPUT_BURST + INPUT_RATE * secs;
   assert.ok(p.x - x0 <= maxInputs * SPEED / 60 + 1e-9, `${(p.x - x0).toFixed(1)}px`);
-  const shots = A.got.filter((m) => m.t === 'snap').flatMap((m) => m.ev).filter((e) => e[0] === 'shot').length;
+  const shots = A.got.filter((m) => m.t === 'snap').flatMap((m) => m.ev || []).filter((e) => e[0] === 'shot').length;
   assert.ok(shots <= Math.ceil(maxInputs / ATK_CD), `${shots}발`);
   // 모아 둔 예산을 다 쓴 뒤 20초 동안: 처리한 입력이 정상(초당 60개)의 1.02배 이내.
   // 처리한 입력 수 = 틱마다 같은 자리에서 출발해 걸은 거리 ÷ 입력 하나의 거리 (넘친 입력은 seq 를 건너뛰어 p.last 로는 못 셈)
@@ -286,7 +286,7 @@ test('포털을 넘는 틱에 쏜 탄 사건이 빈 맵에 남았다가 나중�
   server.update();
   const snap = B.got.find((m) => m.t === 'snap' && m.map === 'meadow1');
   assert.ok(snap);
-  assert.deepEqual(snap.ev.filter((e) => e[0] === 'shot'), [], '지난 사건 없음');
+  assert.deepEqual((snap.ev || []).filter((e) => e[0] === 'shot'), [], '지난 사건 없음');
   assert.equal(server.zone('meadow1').bullets.length, 0);
 });
 

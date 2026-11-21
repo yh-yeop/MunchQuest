@@ -94,7 +94,7 @@ test('공격 입력을 쏟아부어도 발사 간격은 서버가 지킨다', ()
   server.update();
   A.got.length = 0;
   for (let t = 0; t < 20; t++) { A.send(Array.from({ length: 20 }, () => ({ a: 1, tg: '__proto__' }))); server.update(); }
-  const shots = A.got.filter((m) => m.t === 'snap').flatMap((m) => m.ev).filter((e) => e[0] === 'shot').length;
+  const shots = A.got.filter((m) => m.t === 'snap').flatMap((m) => m.ev || []).filter((e) => e[0] === 'shot').length;
   // 입력 예산: 처음 모아 둔 1초치 + 1초에 61.2개 → 최대 ceil(121.2/14)발 (정상 연사 1초치 + 1.02배)
   assert.ok(shots <= Math.ceil((INPUT_BURST + INPUT_RATE) / ATK_CD), `${shots}발`);
   assert.ok(shots > 0);

@@ -98,8 +98,8 @@ export class Client {
     this.lastSnap = t;
     this.interpDelay = Math.max(100, this.snapGap * 2 + 20);
     const seen = new Set();
-    const whole = m.full !== 0;   // 0 이면 바뀐 사람 · 몬스터만 왔다 (안 온 것은 그대로)
-    for (const a of m.players) {
+    const whole = m.full === 1;   // 아니면 바뀐 사람 · 몬스터만 왔다 (안 온 것 · 빠진 목록은 그대로)
+    for (const a of m.players || []) {
       const [id, x, y] = a;
       if (id === this.id) { this.myRow = a; continue; }
       seen.add(id);
@@ -115,7 +115,7 @@ export class Client {
     if (whole) { for (const id of [...this.others.keys()]) if (!seen.has(id)) this.others.delete(id); }
     else stay(this.others, seen, t);
     const alive = new Set();
-    for (const [id, kind, x, y, hp, state, fx, dir] of m.mobs) {
+    for (const [id, kind, x, y, hp, state, fx, dir] of m.mobs || []) {
       const type = MOB_TYPES[kind];
       alive.add(id);
       let o = this.mobs.get(id);

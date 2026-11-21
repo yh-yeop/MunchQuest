@@ -325,14 +325,22 @@ export class Server {
       if (!prev || prev.length !== row.length || row.some((v, k) => k > 1 && v !== prev[k])) delta.push(row);
       m.sent = row;
     }
-    // full: 1 이면 players · mobs 가 이 맵의 전부 (빠진 것은 없어진 것). 0 이면 바뀐 것만 (빠진 것은 그대로)
+    // full: 1 이면 players · mobs 가 이 맵의 전부 (빠진 것은 없어진 것). 없으면 바뀐 것만 (빠진 것은 그대로).
+    // 바이트를 아끼려고 빈 목록 · 빈 사건 · full 0 은 아예 빼고 보낸다 (클라이언트는 없는 것을 빈 것으로 본다)
     const key = this.tick % KEYFRAME === 0 || !this.deltaMobs;
-    const base = { t: 'snap', tick: this.tick, map: z.id, ev: z.ev };
+    const base = { t: 'snap', map: z.id };
+    if (z.ev.length) base.ev = z.ev;
     z.ev = [];
     for (const p of here) {
       const whole = key || p.needFull;
       p.needFull = false;
-      this.conns.get(p.id)?.send({ ...base, players: whole ? players : pdelta, mobs: whole ? full : delta, full: whole ? 1 : 0, you: [p.x, p.y, p.last, p.fx, p.cd, p.roll, p.rcd, p.rdx, p.rdy] });
+      const msg = { ...base, you: [p.x, p.y, p.last, p.fx, p.cd, p.roll, p.rcd, p.rdx, p.rdy] };
+      if (whole) Object.assign(msg, { full: 1, players, mobs: full });
+      else {
+        if (pdelta.length) msg.players = pdelta;
+        if (delta.length) msg.mobs = delta;
+      }
+      this.conns.get(p.id)?.send(msg);
     }
   }
 
