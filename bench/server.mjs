@@ -6,9 +6,10 @@ import { getMap } from '../src/map.js';
 
 import { seeded } from '../testlib/fake.js';
 
-export function run(n, { ticks = TICK_HZ * 60, seed = 7 } = {}) {
+// quiet: 사냥터 입구에 가만히 서 있기만 (몬스터 대부분이 쉬거나 어슬렁거림). deltaMobs: false 면 몬스터를 늘 전부 보냄
+export function run(n, { ticks = TICK_HZ * 60, seed = 7, quiet = false, deltaMobs = true } = {}) {
   const rand = seeded(seed);
-  const server = new Server({ rand, maxPlayers: 1000 });
+  const server = new Server({ rand, maxPlayers: 1000, deltaMobs });
   const bots = [];
   for (let k = 0; k < n; k++) {
     const bot = { bytes: 0, msgs: 0, seq: 0, dx: 0, dy: 0, t: 0, snapBytes: 0, snaps: 0 };
@@ -27,7 +28,7 @@ export function run(n, { ticks = TICK_HZ * 60, seed = 7 } = {}) {
   for (const b of bots) { b.bytes = b.msgs = b.snapBytes = b.snaps = 0; }
   const times = [];
   for (let t = 0; t < ticks; t++) {
-    for (const b of bots) {
+    if (!quiet) for (const b of bots) {
       // 20Hz로 입력 3개씩 (클라이언트와 같음): 가끔 방향을 바꾸며 걷고 쏜다
       const inputs = [];
       for (let i = 0; i < 3; i++) {
@@ -53,6 +54,10 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   for (const n of ns.length ? ns : [10, 30]) {
     run(n, { ticks: 200 });   // 데우기
     const r = run(n);
+    for (const quiet of [false, true]) {
+      const a = run(n, { quiet, deltaMobs: false }), b = run(n, { quiet });
+      console.log(`  ${quiet ? '조용히 서 있기' : '쏘며 돌아다님'} · 몬스터 전부 ${Math.round(a.snap)}B → 바뀐 것만 ${Math.round(b.snap)}B`);
+    }
     console.log(`${String(n).padStart(3)}명 · 틱 평균 ${r.avg.toFixed(3)}ms · p99 ${r.p99.toFixed(3)}ms · 스냅샷 ${Math.round(r.snap)}B · 한 명이 받는 양 ${(r.perSec / 1024).toFixed(1)}KB/s · 힙 ${r.mem.toFixed(1)}MB`);
   }
 }

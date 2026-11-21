@@ -29,7 +29,7 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 
 export class Server {
   // now: 입력 예산에 쓰는 시계(ms). 실제 서버는 진짜 시계를 넘긴다. 없으면 틱마다 1/20초씩 가는 가짜 시계 (테스트 · 결정적)
-  constructor({ maxPlayers = 30, rand = Math.random, now = null } = {}) {
+  constructor({ maxPlayers = 30, rand = Math.random, now = null, deltaMobs = true } = {}) {
     this.players = new Map();   // id → 플레이어
     this.conns = new Map();
     this.zones = new Map();     // 맵 id → { map, mobs, bullets, spores, ev }
@@ -38,6 +38,7 @@ export class Server {
     this.nid = 0;
     this.pid = 0;
     this.maxPlayers = maxPlayers;
+    this.deltaMobs = deltaMobs;   // false: 몬스터를 늘 전부 보냄 (비교 측정용)
     this.rand = rand;
     this.now = now || (() => this.tick * 1000 / TICK_HZ);
     this.lastT = this.now();
@@ -321,7 +322,7 @@ export class Server {
       m.sent = row;
     }
     // mfull: 1 이면 mobs 가 살아 있는 몬스터 전부 (빠진 것은 없어진 것). 아니면 바뀐 것만 (빠진 것은 그대로)
-    const key = this.tick % KEYFRAME === 0;
+    const key = this.tick % KEYFRAME === 0 || !this.deltaMobs;
     const base = { t: 'snap', tick: this.tick, map: z.id, players, ev: z.ev };
     z.ev = [];
     for (const p of here) {
