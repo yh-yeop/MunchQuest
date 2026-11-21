@@ -3,6 +3,7 @@
 import { TS, T, hash, tileAt, isSolid } from './map.js';
 import { PAL } from './palette.js';
 import { MOBS, ITEMS } from './data.js';
+import { layoutTags } from './tags.js';
 
 export const VW = 480, VH = 270;
 const MOB_R = { slime: 6, rabbit: 6, mushroom: 7 };
@@ -488,12 +489,17 @@ export function createRenderer(canvas) {
     ctx.font = '12px Galmuri11, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'bottom';
+    const tags = [];
     for (const p of view.players) {
       const info = roster.get(p.id);
       if (!info) continue;
-      const x = Math.round(p.x) - cx, y = Math.round(p.y) - cy - (p.down ? 12 : 26);
-      outlined(info.name, x, y, p.mine ? PAL.lemon : PAL.white);
-      if (!p.mine && p.hp < p.maxhp && !p.down) {
+      const bar = !p.mine && p.hp < p.maxhp && !p.down;
+      tags.push({ id: p.id, mine: p.mine, p, name: info.name, bar, x: Math.round(p.x) - cx, y: Math.round(p.y) - cy - (p.down ? 12 : 26),
+        w: Math.ceil(ctx.measureText(info.name).width) + 2, h: 12, below: bar ? 4 : 0 });
+    }
+    for (const { p, name, bar, x, y } of layoutTags(tags)) {
+      outlined(name, x, y, p.mine ? PAL.lemon : PAL.white);
+      if (bar) {
         ctx.fillStyle = PAL.ink; ctx.fillRect(x - 8, y + 1, 16, 3);
         ctx.fillStyle = PAL.mint; ctx.fillRect(x - 7, y + 2, Math.max(1, Math.round(14 * p.hp / p.maxhp)), 1);
       }

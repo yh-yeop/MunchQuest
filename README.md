@@ -62,6 +62,7 @@
 | `src/net/` | 연결 방식들(`ws` · `tabs` · `peer` · `local`)과 가짜 지연 |
 | `src/config.js` | 중계 서버 주소 |
 | `src/render.js` | 480×270 도트 렌더: 타일 · 캐릭터 · 몬스터 · 효과 · HUD를 팔레트로 직접 찍음 |
+| `src/tags.js` | 이름표 자리 잡기 (가까이 선 사람끼리 겹치면 위로 쌓음) |
 | `src/sfx.js` | WebAudio 합성 효과음 |
 | `src/main.js` | 화면 · 입력(키보드 · 터치) · 세션 · 사냥 봇 |
 | `worker/` | Cloudflare Worker + Durable Object (출처 검사 · 메시지 크기 · 초당 60개 제한) |
