@@ -47,9 +47,11 @@ export function connectTabs(room, timeout = 700) {
     const me = uid();
     const h = [], c = [];
     let open = false, closed = false;
+    // 페이지를 떠날 때 bye 를 보낸다. 닫히면(끊김 · 나가기 · 방장 없음) 리스너도 지운다 — 안 그러면 들어갔다 나올 때마다 쌓인다
     const close = () => {
       if (closed) return;
       closed = true;
+      removeEventListener('pagehide', close);
       try { ch.postMessage({ k: 'bye', to: 'host', from: me }); } catch (e) { /* 이미 닫힘 */ }
       ch.close();
       for (const f of c) f();
@@ -60,7 +62,7 @@ export function connectTabs(room, timeout = 700) {
       onClose: (f) => c.push(f),
       close,
     };
-    const timer = setTimeout(() => { if (!open) { closed = true; ch.close(); reject(new Error('no-host')); } }, timeout);
+    const timer = setTimeout(() => { if (!open) { closed = true; removeEventListener('pagehide', close); ch.close(); reject(new Error('no-host')); } }, timeout);
     ch.onmessage = ({ data: m }) => {
       if (!m || m.to !== me) return;
       if (m.k === 'hi' && !open) { open = true; clearTimeout(timer); resolve(api); }
