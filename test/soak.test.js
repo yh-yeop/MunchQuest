@@ -54,7 +54,7 @@ import { DT } from '../src/sim.js';
 import { getMap, TS } from '../src/map.js';
 
 
-test('오래 돌리기: 클라이언트 4명이 지연 80~200ms로 3분 동안 사냥 · 포털을 오가도 되맞춤 0회, 클라이언트 버퍼가 쌓이지 않는다', { timeout: 60000 }, () => {
+test('오래 돌리기: 클라이언트 4명이 지연 80~200ms로 3분 동안 사냥 · 포털을 오가도 되맞춤 0회, 클라이언트 버퍼가 쌓이지 않고, 보이는 다른 사람이 서버가 보낸 것과 같다', { timeout: 60000 }, () => {
   const clock = fakeClock();
   const rand = seeded(11);
   const server = new Srv({ rand: seeded(12), now: clock.now });
@@ -95,6 +95,16 @@ test('오래 돌리기: 클라이언트 4명이 지연 80~200ms로 3분 동안 �
       for (const o of [...s.c.others.values(), ...s.c.mobs.values()]) maxBuf = Math.max(maxBuf, o.buf.length);
     }
   }
+  // 서버를 멈추고 오가던 메시지가 다 도착한 뒤: 각 클라이언트가 보는 같은 맵의 다른 사람 = 서버가 마지막으로 보낸 줄 (사람도 바뀐 것만 보냄)
+  clock.advance(1000);
+  for (const s of cs) {
+    const here = [...server.players.values()].filter((p) => p.mapId === s.c.mapId && p.id !== s.c.id);
+    assert.deepEqual([...s.c.others.keys()].sort(), here.map((p) => p.id).sort(), '같은 맵 사람 목록');
+    for (const p of here) {
+      const o = s.c.others.get(p.id);
+      assert.deepEqual([o.lx, o.ly, o.hp, o.lvl, o.down], [p.sent[1], p.sent[2], p.sent[5], p.sent[7], p.sent[8]], p.name);
+    }
+  }
   for (const s of cs) {
     assert.equal(s.c.corrections, 0, `${s.c.me && s.c.mapId} 되맞춤`);
     assert.ok(s.maps.size >= 2, '포털을 넘음');
@@ -116,7 +126,7 @@ test('몬스터는 바뀐 것만 보내도, 지연 150ms로 1분 사냥한 뒤 �
   let sent = 0, full = 0, rows = 0;
   for (const conn of server.conns.values()) {
     const s0 = conn.send.bind(conn);
-    conn.send = (m) => { if (m.t === 'snap' && m.map !== 'town') { sent++; if (m.mfull) full++; rows += m.mobs.length; } s0(m); };
+    conn.send = (m) => { if (m.t === 'snap' && m.map !== 'town') { sent++; if (m.full) full++; rows += m.mobs.length; } s0(m); };
   }
   let tickAcc = 0, inAcc = 0, flushAcc = 0, dx = 1, dy = 0, tt = 0;
   const go = (ms, attack) => {

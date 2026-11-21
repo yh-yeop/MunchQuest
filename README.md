@@ -75,7 +75,7 @@
 | `worker/` | Cloudflare Worker + Durable Object (출처 검사 · 메시지 크기 · 초당 60개 제한) |
 | `vendor/` | 저장소에 둔 글꼴 · 라이브러리 |
 | `testlib/fake.js` | 시험이 같이 쓰는 가짜 시계 · 정해진 무작위 · 바로 붙는 접속 |
-| `bench/server.mjs` · `docs/PERF.md` | 서버 틱 비용 · 스냅샷 크기 측정과 기록 (30명: 틱 0.2ms 안팎, 스냅샷 618B · 몬스터는 바뀐 것만) |
+| `bench/server.mjs` · `docs/PERF.md` | 서버 틱 비용 · 스냅샷 크기 측정과 기록 (30명: 틱 0.2ms 안팎, 사람 · 몬스터는 바뀐 것만 — 서 있으면 스냅샷 224B) |
 | `sprites.json` · `assets/LICENSES.md` | 스프라이트 표 · 에셋 라이선스 장부 |
 
 ## 서버 (Cloudflare Workers)

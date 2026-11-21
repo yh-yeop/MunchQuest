@@ -84,6 +84,7 @@ export class Client {
     this.auth = { x: body.x, y: body.y };
     this.offX = this.offY = 0;
     if (changed) {
+      this.myRow = null;
       this.others.clear();
       this.mobs.clear();
       this.later = [];
@@ -97,17 +98,22 @@ export class Client {
     this.lastSnap = t;
     this.interpDelay = Math.max(100, this.snapGap * 2 + 20);
     const seen = new Set();
+    const whole = m.full !== 0;   // 0 이면 바뀐 사람 · 몬스터만 왔다 (안 온 것은 그대로)
     for (const a of m.players) {
       const [id, x, y] = a;
-      if (id === this.id) { if (m.you) this.reconcile(a, m.you); continue; }
+      if (id === this.id) { this.myRow = a; continue; }
       seen.add(id);
       let o = this.others.get(id);
       if (!o) { o = { buf: [], x, y, fx: 1, moving: false }; this.others.set(id, o); }
       o.buf.push({ t, x, y });
       while (o.buf.length > 2 && o.buf[1].t < t - 1000) o.buf.shift();
+      o.lx = x; o.ly = y;
       o.sfx = a[3]; o.roll = a[4]; o.hp = a[5]; o.maxhp = a[6]; o.lvl = a[7]; o.down = a[8]; o.inv = a[9];
     }
-    for (const id of [...this.others.keys()]) if (!seen.has(id)) this.others.delete(id);
+    // 내 줄(체력 등)은 바뀔 때만 오지만 몸 상태(you)는 늘 온다
+    if (m.you && this.myRow) this.reconcile(this.myRow, m.you);
+    if (whole) { for (const id of [...this.others.keys()]) if (!seen.has(id)) this.others.delete(id); }
+    else stay(this.others, seen, t);
     const alive = new Set();
     for (const [id, kind, x, y, hp, state, fx, dir] of m.mobs) {
       const type = MOB_TYPES[kind];
@@ -119,15 +125,8 @@ export class Client {
       if (state === 2 && o.state !== 2 && o.state !== undefined) this.emit({ k: 'wind', mob: id, type, x, y });   // 공격 준비 (경고 표시 · 소리)
       Object.assign(o, { lx: x, ly: y, hp, state, sfx: fx, dir: dir ?? null });
     }
-    if (m.mfull !== 0) { for (const id of [...this.mobs.keys()]) if (!alive.has(id)) this.mobs.delete(id); }
-    else {
-      // 바뀐 것만 온 스냅샷: 안 온 몬스터는 그 자리에 그대로 (보간 버퍼에도 같은 자리를 넣어 오래 멈췄다 움직일 때 미끄러지지 않게)
-      for (const [id, o] of this.mobs) {
-        if (alive.has(id)) continue;
-        o.buf.push({ t, x: o.lx, y: o.ly });
-        while (o.buf.length > 2 && o.buf[1].t < t - 1000) o.buf.shift();
-      }
-    }
+    if (whole) { for (const id of [...this.mobs.keys()]) if (!alive.has(id)) this.mobs.delete(id); }
+    else stay(this.mobs, alive, t);
     for (const e of m.ev || []) this.onWorldEvent(e, t);
     // 화면이 안 그려지는 동안(탭이 뒤로 감)에도 늦춘 사건이 끝없이 쌓이지 않게 스냅샷마다 내보낸다
     this.release(t);
@@ -262,6 +261,15 @@ export class Client {
       mobs.push({ id, type: o.type, x: o.x, y: o.y, hp: o.hp, state: o.state, fx: o.sfx || 1, moving: o.moving, dir: o.dir });
     }
     return { players, mobs };
+  }
+}
+
+// 바뀐 것만 온 스냅샷: 안 온 것은 그 자리에 그대로 — 보간 버퍼에도 같은 자리를 넣는다 (오래 멈췄다 움직일 때 미끄러지지 않게)
+function stay(all, seen, t) {
+  for (const [id, o] of all) {
+    if (seen.has(id)) continue;
+    o.buf.push({ t, x: o.lx, y: o.ly });
+    while (o.buf.length > 2 && o.buf[1].t < t - 1000) o.buf.shift();
   }
 }
 

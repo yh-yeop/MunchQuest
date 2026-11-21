@@ -38,7 +38,7 @@ export class Server {
     this.nid = 0;
     this.pid = 0;
     this.maxPlayers = maxPlayers;
-    this.deltaMobs = deltaMobs;   // false: 몬스터를 늘 전부 보냄 (비교 측정용)
+    this.deltaMobs = deltaMobs;   // false: 몬스터를 늘 전부 보냄 (비교 측정용, 사람 줄도)
     this.rand = rand;
     this.now = now || (() => this.tick * 1000 / TICK_HZ);
     this.lastT = this.now();
@@ -110,6 +110,7 @@ export class Server {
     p.x = at.x; p.y = at.y; p.roll = 0;
     p.drops.clear();
     p.needFull = true;
+    p.sent = null;   // 새 맵의 사람들에겐 처음 보이는 사람
     this.zone(mapId);
     this.conns.get(p.id)?.send({ t: 'map', map: mapId, body: this.body(p), last: p.last });
     this.broadcast({ t: 'roster', players: this.roster() });
@@ -306,11 +307,14 @@ export class Server {
   // players: [id, x, y, 방향, 구르는 중, hp, 최대 hp, 레벨, 쓰러짐, 무적]
   // you: [x, y, 마지막 입력, 방향, 공격 대기, 구르기, 구르기 대기, 구르기 방향 x, y]
   sendSnapshot(z) {
-    const players = [], full = [], delta = [], here = [];
+    const players = [], pdelta = [], full = [], delta = [], here = [];
     for (const p of this.players.values()) {
       if (p.mapId !== z.id) continue;
       here.push(p);
-      players.push([p.id, r1(p.x), r1(p.y), p.fx, p.roll ? 1 : 0, Math.ceil(p.hp), p.maxhp, p.lvl, p.down ? 1 : 0, p.inv > 0 ? 1 : 0]);
+      const row = [p.id, r1(p.x), r1(p.y), p.fx, p.roll ? 1 : 0, Math.ceil(p.hp), p.maxhp, p.lvl, p.down ? 1 : 0, p.inv > 0 ? 1 : 0];
+      players.push(row);
+      if (!p.sent || row.some((v, k) => k > 0 && v !== p.sent[k])) pdelta.push(row);
+      p.sent = row;
     }
     for (const m of z.mobs.values()) {
       if (m.dead) continue;
@@ -321,14 +325,14 @@ export class Server {
       if (!prev || prev.length !== row.length || row.some((v, k) => k > 1 && v !== prev[k])) delta.push(row);
       m.sent = row;
     }
-    // mfull: 1 이면 mobs 가 살아 있는 몬스터 전부 (빠진 것은 없어진 것). 아니면 바뀐 것만 (빠진 것은 그대로)
+    // full: 1 이면 players · mobs 가 이 맵의 전부 (빠진 것은 없어진 것). 0 이면 바뀐 것만 (빠진 것은 그대로)
     const key = this.tick % KEYFRAME === 0 || !this.deltaMobs;
-    const base = { t: 'snap', tick: this.tick, map: z.id, players, ev: z.ev };
+    const base = { t: 'snap', tick: this.tick, map: z.id, ev: z.ev };
     z.ev = [];
     for (const p of here) {
       const whole = key || p.needFull;
       p.needFull = false;
-      this.conns.get(p.id)?.send({ ...base, mobs: whole ? full : delta, mfull: whole ? 1 : 0, you: [p.x, p.y, p.last, p.fx, p.cd, p.roll, p.rcd, p.rdx, p.rdy] });
+      this.conns.get(p.id)?.send({ ...base, players: whole ? players : pdelta, mobs: whole ? full : delta, full: whole ? 1 : 0, you: [p.x, p.y, p.last, p.fx, p.cd, p.roll, p.rcd, p.rdx, p.rdy] });
     }
   }
 
