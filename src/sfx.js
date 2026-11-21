@@ -66,19 +66,26 @@ export function play(name, vol = 1) {
   }
 }
 
-// 클라이언트 사건 → 소리
-export function eventSound(e) {
+// 멀리서 난 소리는 작게: 화면 반쯤(160px) 안은 그대로, 400px 밖은 안 들림
+export function falloff(dx, dy) {
+  const d = Math.hypot(dx, dy);
+  return d <= 160 ? 1 : d >= 400 ? 0 : 1 - (d - 160) / 240;
+}
+
+// 클라이언트 사건 → 소리. near: 내 위치에서의 거리로 줄인 크기 (0..1, 내 사건은 1)
+export function eventSound(e, near = 1) {
+  if (near <= 0) return;
   switch (e.k) {
-    case 'shot': play(e.mine ? 'shoot' : 'oshoot'); break;
-    case 'hit': play(e.crit ? 'crit' : 'hit', e.mine ? 1 : 0.4); break;
-    case 'die': play('die'); break;
+    case 'shot': play(e.mine ? 'shoot' : 'oshoot', near); break;
+    case 'hit': play(e.crit ? 'crit' : 'hit', (e.mine ? 1 : 0.4) * near); break;
+    case 'die': play('die', near); break;
     case 'hurt': if (e.mine) play('hurt'); break;
-    case 'wind': play('wind'); break;
+    case 'wind': play('wind', near); break;
     case 'drop': play('drop', e.item === 'coin' ? 0.6 : 1); break;
     case 'pick': play(e.item === 'coin' ? 'coin' : 'pick'); break;
     case 'roll': play('roll'); break;
-    case 'spore': play('spore', 0.6); break;
-    case 'lvl': play('lvl', e.mine ? 1 : 0.4); break;
+    case 'spore': play('spore', 0.6 * near); break;
+    case 'lvl': play('lvl', e.mine ? 1 : 0.4 * near); break;
     case 'down': if (e.mine) play('down'); break;
     case 'map': play('portal'); break;
   }

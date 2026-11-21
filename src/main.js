@@ -4,7 +4,7 @@ import { Client } from './client.js';
 import { DT } from './sim.js';
 import { getMap, MW, TS } from './map.js';
 import { createRenderer, VW, VH } from './render.js';
-import { unlock, sound, eventSound } from './sfx.js';
+import { unlock, sound, eventSound, falloff } from './sfx.js';
 import { localPair } from './net/local.js';
 import { withLatency } from './net/latency.js';
 import { listenTabs, connectTabs } from './net/tabs.js';
@@ -336,6 +336,14 @@ function updateDebug() {
   ].filter(Boolean).join('\n');
 }
 
+// 사건이 난 곳이 나에게서 얼마나 가까운지 (소리 크기). 자리를 모르는 사건 · 내 사건은 1
+function nearness(c, view, e) {
+  if (e.mine || !c.me) return 1;
+  let x = e.x, y = e.y;
+  if (e.who && x === undefined) { const p = view.players.find((q) => q.id === e.who); if (p) { x = p.x; y = p.y; } }
+  return x === undefined ? 1 : falloff(x - c.me.x, y - c.me.y);
+}
+
 // ---------- 루프 ----------
 let last = performance.now(), acc = 0, dbgT = 0, flushT = 0;
 const cost = { frame: 0, draw: 0 };   // 프레임 하나에 든 시간(ms, 지수 평균) — 디버그 패널
@@ -367,7 +375,7 @@ function frame(now) {
       for (const e of c.drain()) {
         if (e.k === 'map') { renderer.setMap(c.map); updateHud(); }
         renderer.event(e);
-        eventSound(e);
+        eventSound(e, nearness(c, view, e));
       }
       const t1 = performance.now();
       renderer.draw(view, { auth: c.auth, debug, roster: c.roster, stats: c.stats, time: now / 1000, dt, meIdNow: c.id });

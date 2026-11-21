@@ -302,6 +302,7 @@ export function createRenderer(canvas) {
         recoil.set(e.who, 0.07); aim.set(e.who, { fx: e.vx >= 0 ? 1 : -1, t: 0.3 });
         break;
       case 'wind': alert.set(e.mob, 0.45); break;
+      case 'down': { const p = posOf(e.who); if (p) burst(p.x, p.y - 6, 10, [PAL.cloud, PAL.white], 50, 0.5, 30); break; }
       case 'spore': fx.spores.push({ x: e.x, y: e.y, vx: e.vx, vy: e.vy, life: 2.4 }); break;
       case 'hit': {
         const m = lastMobs.get(e.mob);
