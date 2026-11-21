@@ -40,6 +40,24 @@ function blob(px, cx, cy, rx, ry, fill, line, hi) {
   if (hi) { px(hi, cx - Math.floor(rx / 2), cy - Math.floor(ry / 2), 2, 1); px(hi, cx - Math.floor(rx / 2) - 1, cy - Math.floor(ry / 2) + 1); }
 }
 
+// 스프라이트의 하얀 실루엣 (맞은 순간 번쩍)
+const whites = new WeakMap();
+function whiteOf(src) {
+  let c = whites.get(src);
+  if (!c) {
+    c = document.createElement('canvas');
+    c.width = src.width; c.height = src.height;
+    const g = c.getContext('2d');
+    g.drawImage(src, 0, 0);
+    g.globalCompositeOperation = 'source-in';
+    g.fillStyle = PAL.white;
+    g.fillRect(0, 0, c.width, c.height);
+    c.ax = src.ax; c.ay = src.ay;
+    whites.set(src, c);
+  }
+  return c;
+}
+
 // ---------- 숫자 글꼴 3×5 ----------
 const GLYPH = {
   0: '111101101101111', 1: '010110010010111', 2: '111001111100111', 3: '111001111001111', 4: '101101111001001',
@@ -307,7 +325,8 @@ export function createRenderer(canvas) {
       }
       case 'hurt': {
         const p = posOf(e.who);
-        if (p) fx.nums.push({ x: p.x, y: p.y - 30, n: e.dmg, hurt: true, t: 0, dx: 0 });
+        if (p) fx.nums.push({ x: p.x, y: p.y - 52, n: e.dmg, hurt: true, t: 0, dx: 0 });   // 숫자 위끝 기준: 이름표(발 위 26~38px) 위에서 떠오름
+        flash.set(e.who, 0.08);
         if (e.mine) { fx.hurt = 0.35; fx.shake = Math.max(fx.shake, 3); }
         break;
       }
@@ -320,7 +339,7 @@ export function createRenderer(canvas) {
         }
         if (e.mine) {
           fx.big = { text: `레벨 업!  Lv ${e.lvl}`, t: 0 };
-          if (p) fx.nums.push({ x: p.x, y: p.y - 40, label: `최대 체력 +${PLAYER.hpPerLvl} · 공격 +${PLAYER.dmgPerLvl}`, t: -0.3, dx: 0 });
+          if (p) fx.nums.push({ x: p.x, y: p.y - 56, label: `최대 체력 +${PLAYER.hpPerLvl} · 공격 +${PLAYER.dmgPerLvl}`, t: -0.3, dx: 0 });
           fx.shake = Math.max(fx.shake, 2);
         }
         break;
@@ -330,13 +349,13 @@ export function createRenderer(canvas) {
         const d = fx.drops.get(e.id);
         if (d) { fx.flies.push({ item: d.item, x: d.x, y: d.y, t: 0 }); fx.drops.delete(e.id); }
         const me = posOf(meId);
-        if (me) fx.nums.push({ x: me.x, y: me.y - 34, label: `+${e.n} ${ITEMS[e.item]?.name || e.item}`, t: 0, dx: 0 });
+        if (me) fx.nums.push({ x: me.x, y: me.y - 42, label: `+${e.n} ${ITEMS[e.item]?.name || e.item}`, t: 0, dx: 0 });
         break;
       }
       case 'gone': fx.drops.delete(e.id); break;
       case 'exp': {
         const me = posOf(meId);
-        if (me) fx.nums.push({ x: me.x + 14, y: me.y - 26, n: '+' + e.n, exp: true, t: 0, dx: 0 });
+        if (me) fx.nums.push({ x: me.x + 22, y: me.y - 46, n: '+' + e.n, exp: true, t: 0, dx: 0 });
         break;
       }
       case 'roll': { const me = posOf(meId); if (me) burst(me.x, me.y - 1, 5, [PAL.path1, PAL.white], 30, 0.3); break; }
@@ -436,7 +455,7 @@ export function createRenderer(canvas) {
       ctx.fillStyle = 'rgba(43,42,58,.28)';
       if (e.k === 'p') {
         ctx.fillRect(X - 5, Y - 2, 10, 3); ctx.fillRect(X - 6, Y - 1, 12, 1);
-        const ghost = o.inv && !o.down && (opt.calm || Math.floor(time * 14) % 2);   // 맞은 뒤 깜빡 (움직임 줄이기면 반투명)
+        const ghost = o.inv && !o.down && !flash.has(o.id) && (opt.calm || Math.floor(time * 14) % 2);   // 맞은 뒤 깜빡 (움직임 줄이기면 반투명)
         if (ghost && !opt.calm) continue;
         const info = roster.get(o.id);
         const pose = o.down ? 'down' : o.roll ? 'roll' : o.moving ? 'walk' : 'idle';
@@ -445,7 +464,7 @@ export function createRenderer(canvas) {
         const a = aim.get(o.id);
         const s = playerSprite(info ? info.color : PAL.cloud, a ? a.fx : o.fx, pose, phase, blink, recoil.has(o.id) ? 1 : 0);
         if (ghost) ctx.globalAlpha = 0.5;
-        ctx.drawImage(s, X - s.ax, Y - s.ay);
+        ctx.drawImage(flash.has(o.id) ? whiteOf(s) : s, X - s.ax, Y - s.ay);
         ctx.globalAlpha = 1;
       } else {
         const r = MOB_R[o.type] || 6;
@@ -586,6 +605,15 @@ export function createRenderer(canvas) {
     }
 
     // ---------- 화면 고정 HUD ----------
+    // 체력이 30% 아래면 화면 가장자리가 붉게 뛴다 (움직임 줄이기면 뛰지 않고 그대로)
+    if (me && !me.down && me.hp > 0 && me.hp / (me.maxhp || 1) < 0.3) {
+      const beat = opt.calm ? 0.5 : Math.max(0, Math.sin(time * 7)) ** 4;
+      for (let i = 0; i < 6; i++) {
+        ctx.fillStyle = `rgba(242,112,107,${(0.05 + beat * 0.08) * (6 - i) / 6})`;
+        ctx.fillRect(i * 2, i * 2, VW - i * 4, 2); ctx.fillRect(i * 2, VH - i * 2 - 2, VW - i * 4, 2);
+        ctx.fillRect(i * 2, i * 2 + 2, 2, VH - i * 4 - 4); ctx.fillRect(VW - i * 2 - 2, i * 2 + 2, 2, VH - i * 4 - 4);
+      }
+    }
     if (fx.hurt > 0) {
       fx.hurt -= dt;
       ctx.fillStyle = `rgba(242,112,107,${Math.min(0.35, fx.hurt)})`;
