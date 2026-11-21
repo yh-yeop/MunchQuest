@@ -197,7 +197,8 @@ function updateDebug() {
     `스냅샷 ${Math.round(c.snapGap)}ms · 보간 ${Math.round(c.interpDelay)}ms`,
     `되맞춤 ${c.corrections} · 대기 입력 ${c.pending.length}`,
     `맵 ${c.mapId} · 몬스터 ${c.mobs.size} · 사람 ${c.others.size + 1}`,
-    `프레임 ${cost.frame.toFixed(2)}ms (그리기 ${cost.draw.toFixed(2)}) · 스프라이트 ${spriteCount()}`,
+    `프레임 ${cost.frame.toFixed(2)}ms (그리기 ${cost.draw.toFixed(2)})`,
+    `스프라이트 캐시 ${spriteCount()}`,
     session.server ? `서버 틱 ${session.server.tick} · 봇 (B)` : '',
   ].filter(Boolean).join('\n');
 }
