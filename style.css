@@ -22,8 +22,9 @@ button,input{font:inherit;color:inherit}
 .bar b{color:var(--lemon);font-weight:400}
 .bar button{cursor:pointer}
 .bar button:hover{border-color:var(--cloud)}
-.net{position:absolute;left:calc(6 * var(--px));top:calc(24 * var(--px));color:var(--cloud);text-shadow:var(--px) var(--px) 0 var(--ink)}
-.dbg{position:absolute;right:calc(6 * var(--px));bottom:calc(20 * var(--px));background:rgba(43,42,58,.85);border:var(--px) solid var(--ink2);
+.net{position:absolute;left:calc(6 * var(--px));top:calc(24 * var(--px));max-width:calc(200 * var(--px));color:var(--cloud);text-shadow:var(--px) var(--px) 0 var(--ink)}
+/* 디버그는 오른쪽 위: 아래쪽 키 안내 · 가운데 내 캐릭터를 가리지 않게 (폭은 글을 짧게 써서 줄임) */
+.dbg{position:absolute;right:calc(6 * var(--px));top:calc(28 * var(--px));background:rgba(43,42,58,.85);border:var(--px) solid var(--ink2);
   padding:calc(3 * var(--px)) calc(5 * var(--px));font-family:inherit;white-space:pre;color:var(--mint)}
 .keys{position:absolute;left:0;right:0;bottom:calc(36 * var(--px));text-align:center;color:var(--cloud);text-shadow:var(--px) var(--px) 0 var(--ink);transition:opacity 1.5s}
 .keys,.net{transition:opacity 1.5s}

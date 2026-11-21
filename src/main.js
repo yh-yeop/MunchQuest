@@ -269,12 +269,12 @@ function updateDebug() {
   if (!session || !debug) return;
   const c = session.client;
   $('dbg').textContent = [
-    `왕복 ${Math.round(c.rtt)}ms (가짜 지연 ${fakeLag}ms — 1·2·3·4)`,
+    `왕복 ${Math.round(c.rtt)}ms · 가짜 지연 ${fakeLag} (1~4)`,
     `예측 ${c.predict ? '켬' : '끔'} (P) · 보간 ${c.interp ? '켬' : '끔'} (I)`,
-    `스냅샷 간격 ${Math.round(c.snapGap)}ms · 보간 지연 ${Math.round(c.interpDelay)}ms`,
-    `되맞춤 ${c.corrections}회 · 확인 대기 입력 ${c.pending.length}개`,
+    `스냅샷 ${Math.round(c.snapGap)}ms · 보간 ${Math.round(c.interpDelay)}ms`,
+    `되맞춤 ${c.corrections} · 대기 입력 ${c.pending.length}`,
     `맵 ${c.mapId} · 몬스터 ${c.mobs.size}`,
-    session.server ? `서버 틱 ${session.server.tick} · 봇 추가 (B)` : '',
+    session.server ? `서버 틱 ${session.server.tick} · 봇 (B)` : '',
   ].filter(Boolean).join('\n');
 }
 
