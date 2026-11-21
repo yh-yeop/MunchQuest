@@ -69,7 +69,8 @@
 | `src/tags.js` | 이름표 자리 잡기 (가까이 선 사람끼리 겹치면 위로 쌓음) |
 | `src/sfx.js` | WebAudio 합성 효과음 (멀리서 난 소리는 작게, 400px 밖은 안 들림) |
 | `src/keys.js` | 키 바꾸기 (주 키 + 늘 되는 보조 키, 겹치면 맞바꿈) |
-| `src/main.js` | 화면 · 입력(키보드 · 터치) · 세션 · 설정 |
+| `src/main.js` | 화면 · 세션(채널 · 방장 · 참가 · 혼자 테스트) · 루프 · HUD 글자 |
+| `src/input.js` · `src/settings.js` · `src/dom.js` | 키보드 · 터치 입력 / 설정 화면(키 바꾸기 · 움직임 줄이기) / 요소 찾기 · 저장 |
 | `src/bot.js` | 혼자 테스트의 사냥 봇 (화면과 무관해서 시험에서도 그대로 씀) |
 | `worker/` | Cloudflare Worker + Durable Object (출처 검사 · 메시지 크기 · 초당 60개 제한) |
 | `vendor/` | 저장소에 둔 글꼴 · 라이브러리 |

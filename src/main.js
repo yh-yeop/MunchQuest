@@ -12,14 +12,11 @@ import { listenTabs, connectTabs } from './net/tabs.js';
 import { listenPeer, connectPeer } from './net/peer.js';
 import { connectWS } from './net/ws.js';
 import { SERVER_URL } from './config.js';
-import { ACTIONS, loadKeys, bindKey, codesFor, keyLabel, DEFAULT_KEYS } from './keys.js';
+import { $, store } from './dom.js';
+import { createSettings } from './settings.js';
+import { createInput } from './input.js';
 
-const $ = (id) => document.getElementById(id);
-const NAME_KEY = 'munch:name', SOUND_KEY = 'munch:sound', KEYS_KEY = 'munch:keys', CALM_KEY = 'munch:calm';
-const store = {
-  get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
-  set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* 저장 불가 환경 무시 */ } },
-};
+const NAME_KEY = 'munch:name', SOUND_KEY = 'munch:sound';
 const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';   // 0 · 1 은 빼서 공개 채널(CH01…)과 겹치지 않게
 const newCode = () => Array.from({ length: 4 }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join('');
 const CHANNELS = ['CH01', 'CH02', 'CH03'];
@@ -37,10 +34,7 @@ let joining = 0;      // 연결을 기다리는 동안 버튼을 또 누르면 �
 let fakeLag = 0;
 let debug = false;
 sound.on = store.get(SOUND_KEY) !== '0';
-const keys = loadKeys(store.get(KEYS_KEY));
-let binding = null;   // 키 바꾸기: 새 키를 기다리는 동작
-// 움직임 줄이기: 고른 적이 없으면 기기 설정(prefers-reduced-motion)을 따른다
-renderer.opt.calm = store.get(CALM_KEY) ? store.get(CALM_KEY) === '1' : !!globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+const settings = createSettings(renderer);
 
 // ---------- 화면 크기: 정수 배율 ----------
 function fit() {
@@ -163,110 +157,21 @@ function leave(reason) {
 }
 
 // ---------- 입력 ----------
-const held = new Set();
-const touch = { x: 0, y: 0, atk: false, roll: false };
-addEventListener('keydown', (e) => {
-  unlock();
-  if (binding) {
-    e.preventDefault();
-    if (e.code !== 'Escape' && bindKey(keys, binding, e.code)) store.set(KEYS_KEY, JSON.stringify(keys));
-    binding = null;
-    renderSettings();
-    return;
-  }
-  if (e.target.tagName === 'INPUT') return;
-  held.add(e.code);
-  if (!session && e.code === 'Escape' && !$('settings').hidden) openSettings(false);
-  if (!session) return;
-  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'ShiftLeft', 'ShiftRight', 'F3'].includes(e.code) || ACTIONS.some(([a]) => keys[a] === e.code)) e.preventDefault();
-  if (e.repeat) return;   // 아래는 켜고 끄는 키 — 누르고 있어도 한 번만
-  if (e.code === 'F3' || e.code === 'Backquote') { e.preventDefault(); debug = !debug; updateHud(); }
-  const n = { Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3 }[e.code];
-  if (n !== undefined && debug) { fakeLag = LAG_PRESETS[n]; updateHud(); }
-  if (e.code === 'KeyP' && debug) { session.client.predict = !session.client.predict; updateHud(); }
-  if (e.code === 'KeyI' && debug) { session.client.interp = !session.client.interp; updateHud(); }
-  if (e.code === 'KeyB' && debug && session.server) { session.bots.push(new Bot(session.server, 150, session.bots.length + 1)); }
-  if (e.code === 'KeyM') { sound.on = !sound.on; store.set(SOUND_KEY, sound.on ? '1' : '0'); updateHud(); }
-  if (e.code === 'Escape') leave('채널에서 나왔어요');
+const input = createInput({
+  keys: settings.keys,
+  playing: () => !!session,
+  before: (e) => settings.capture(e),
+  onKey: (e) => {
+    if (e.code === 'F3' || e.code === 'Backquote') { e.preventDefault(); debug = !debug; updateHud(); }
+    const n = { Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3 }[e.code];
+    if (n !== undefined && debug) { fakeLag = LAG_PRESETS[n]; updateHud(); }
+    if (e.code === 'KeyP' && debug) { session.client.predict = !session.client.predict; updateHud(); }
+    if (e.code === 'KeyI' && debug) { session.client.interp = !session.client.interp; updateHud(); }
+    if (e.code === 'KeyB' && debug && session.server) { session.bots.push(new Bot(session.server, 150, session.bots.length + 1)); }
+    if (e.code === 'KeyM') { sound.on = !sound.on; store.set(SOUND_KEY, sound.on ? '1' : '0'); updateHud(); }
+    if (e.code === 'Escape') leave('채널에서 나왔어요');
+  },
 });
-addEventListener('keyup', (e) => held.delete(e.code));
-addEventListener('blur', () => { held.clear(); touch.atk = touch.roll = false; });
-function readInput() {
-  const k = (a) => codesFor(keys, a).some((x) => held.has(x));
-  let dx = (k('right') ? 1 : 0) - (k('left') ? 1 : 0) + touch.x;
-  let dy = (k('down') ? 1 : 0) - (k('up') ? 1 : 0) + touch.y;
-  const m = Math.hypot(dx, dy);
-  if (m > 1) { dx /= m; dy /= m; }
-  const a = k('atk') || touch.atk;
-  const r = k('roll') || touch.roll;
-  return [dx, dy, a ? 1 : 0, r ? 1 : 0];
-}
-// 터치: 왼쪽 아무 데나 누르고 끌면 이동, 오른쪽 버튼으로 공격 · 구르기
-let stick = null;
-$('screen').addEventListener('pointerdown', (e) => {
-  unlock();
-  // 이미 끌고 있는 손가락이 있으면 다른 손가락(공격 버튼을 살짝 빗나간 터치 등)이 막대를 빼앗지 않는다
-  if (e.pointerType === 'mouse' || e.target.closest('button') || stick) return;
-  stick = { x: e.clientX, y: e.clientY, id: e.pointerId };
-  const st = $('stick');
-  st.style.left = `${e.clientX}px`; st.style.top = `${e.clientY}px`; st.firstChild.style.transform = '';
-  st.hidden = !session;
-});
-addEventListener('pointermove', (e) => {
-  if (!stick || e.pointerId !== stick.id) return;
-  const dx = e.clientX - stick.x, dy = e.clientY - stick.y, d = Math.hypot(dx, dy);
-  const s = d < 8 ? 0 : Math.min(1, d / 50) / d;
-  touch.x = dx * s; touch.y = dy * s;
-  const k = Math.min(d, 40) / (d || 1);
-  $('stick').firstChild.style.transform = `translate(${Math.round(dx * k)}px, ${Math.round(dy * k)}px)`;
-});
-const stickEnd = (e) => { if (stick && e.pointerId === stick.id) { stick = null; touch.x = touch.y = 0; $('stick').hidden = true; } };
-addEventListener('pointerup', stickEnd);
-addEventListener('pointercancel', stickEnd);
-for (const [id, key] of [['tAtk', 'atk'], ['tRoll', 'roll']]) {
-  const b = $(id);
-  b.addEventListener('pointerdown', (e) => { e.preventDefault(); unlock(); touch[key] = true; b.setPointerCapture(e.pointerId); });
-  const up = () => { touch[key] = false; };
-  b.addEventListener('pointerup', up);
-  b.addEventListener('pointercancel', up);
-  b.addEventListener('lostpointercapture', up);
-}
-
-// ---------- 설정: 키 바꾸기 · 움직임 줄이기 ----------
-function keyHint() {
-  const L = (a) => keyLabel(keys[a]);
-  return `이동 ${L('up')}${L('left')}${L('down')}${L('right')} · 공격 ${L('atk')}/Space (자동 조준) · 구르기 ${L('roll')}/Shift · 소리 M · 나가기 Esc`;
-}
-function renderSettings() {
-  const list = $('keyList');
-  list.textContent = '';
-  for (const [a, name] of ACTIONS) {
-    const row = document.createElement('label');
-    row.append(name);
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.textContent = binding === a ? '…' : keyLabel(keys[a]);
-    b.className = binding === a ? 'wait' : '';
-    b.setAttribute('aria-label', `${name}: ${keyLabel(keys[a])}. 눌러서 바꾸기`);
-    b.addEventListener('click', () => { binding = binding === a ? null : a; renderSettings(); list.querySelector('.wait')?.focus(); });
-    row.append(b);
-    list.append(row);
-  }
-  $('calm').checked = renderer.opt.calm;
-  $('keys').textContent = keyHint();
-}
-function openSettings(open) {
-  binding = null;
-  $('settings').hidden = !open;
-  $('title').querySelector('.box').hidden = open;
-  renderSettings();
-  (open ? $('keyList').querySelector('button') : $('btnSet')).focus();
-}
-$('btnSet').addEventListener('click', () => openSettings(true));
-$('setClose').addEventListener('click', () => openSettings(false));
-$('keysReset').addEventListener('click', () => { Object.assign(keys, DEFAULT_KEYS); store.set(KEYS_KEY, JSON.stringify(keys)); binding = null; renderSettings(); });
-$('calm').addEventListener('change', () => { renderer.opt.calm = $('calm').checked; store.set(CALM_KEY, renderer.opt.calm ? '1' : '0'); });
-renderSettings();
 
 // ---------- 화면 글자 ----------
 function myName() { return ($('name').value || '').trim().slice(0, 12) || '손님'; }
@@ -319,7 +224,7 @@ function frame(now) {
     acc += dt;
     while (acc >= DT) {
       acc -= DT;
-      c.input(...readInput());
+      c.input(...input.read());
       for (const b of session.bots) b.step();
     }
     // 입력은 20Hz로 묶어 보낸다 (예측은 그대로라 손맛은 같고, 서버 요청 수는 1/3)
