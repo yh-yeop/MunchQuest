@@ -116,6 +116,7 @@ export class Client {
       if (!o) { o = { buf: [], x, y, type, fx }; this.mobs.set(id, o); }
       o.buf.push({ t, x, y });
       while (o.buf.length > 2 && o.buf[1].t < t - 1000) o.buf.shift();
+      if (state === 2 && o.state !== 2 && o.state !== undefined) this.emit({ k: 'wind', mob: id, type, x, y });   // 공격 준비 (경고 표시 · 소리)
       Object.assign(o, { lx: x, ly: y, hp, state, sfx: fx, dir: dir ?? null });
     }
     for (const id of [...this.mobs.keys()]) if (!alive.has(id)) this.mobs.delete(id);

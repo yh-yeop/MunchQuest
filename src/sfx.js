@@ -44,7 +44,7 @@ function noise(dur, vol = 0.3, freq = 1200, delay = 0) {
 // 같은 소리가 한꺼번에 몰리면 시끄러우니 최소 간격
 export function play(name, vol = 1) {
   if (!on || !ac || ac.state !== 'running') return;
-  const now = performance.now(), gap = { shoot: 40, hit: 30, oshoot: 90 }[name] || 0;
+  const now = performance.now(), gap = { shoot: 40, hit: 30, oshoot: 90, wind: 120 }[name] || 0;
   if (now - (lastAt.get(name) || 0) < gap) return;
   lastAt.set(name, now);
   switch (name) {
@@ -60,6 +60,7 @@ export function play(name, vol = 1) {
     case 'spore': tone(300, 520, 0.12, 'sine', 0.08 * vol); break;
     case 'lvl': [523, 659, 784, 1047].forEach((f, i) => tone(f, f, 0.12, 'square', 0.12 * vol, i * 0.08)); break;
     case 'down': [392, 330, 262].forEach((f, i) => tone(f, f * 0.98, 0.18, 'triangle', 0.2 * vol, i * 0.15)); break;
+    case 'wind': tone(660, 990, 0.07, 'square', 0.05 * vol); break;
     case 'drop': tone(1180, 1180, 0.03, 'triangle', 0.06 * vol, 0.34); tone(1480, 1480, 0.04, 'triangle', 0.05 * vol, 0.5); break;
     case 'portal': tone(400, 1200, 0.25, 'sine', 0.15 * vol); tone(600, 1800, 0.25, 'sine', 0.08 * vol, 0.05); break;
   }
@@ -72,6 +73,7 @@ export function eventSound(e) {
     case 'hit': play(e.crit ? 'crit' : 'hit', e.mine ? 1 : 0.4); break;
     case 'die': play('die'); break;
     case 'hurt': if (e.mine) play('hurt'); break;
+    case 'wind': play('wind'); break;
     case 'drop': play('drop', e.item === 'coin' ? 0.6 : 1); break;
     case 'pick': play(e.item === 'coin' ? 'coin' : 'pick'); break;
     case 'roll': play('roll'); break;

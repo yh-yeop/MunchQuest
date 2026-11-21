@@ -267,7 +267,7 @@ export function createRenderer(canvas) {
   let map = null, bg = null, waters = [], portals = [];
   const fx = { shots: [], spores: [], parts: [], nums: [], drops: new Map(), flies: [], rings: [], pops: [], pillars: [], banner: null, big: null, shake: 0, hurt: 0 };
   // stop: 히트스톱 — 내가 맞힌 몬스터를 잠깐(0.05초, 치명타 0.09초) 그 자리 그 모습으로 멈춰 그린다. 판정과 무관한 그림만
-  const flash = new Map(), recoil = new Map(), aim = new Map(), stop = new Map();
+  const flash = new Map(), recoil = new Map(), aim = new Map(), stop = new Map(), alert = new Map();
   // calm: 움직임 줄이기 (설정 · prefers-reduced-motion) — 화면 흔들림 없음, 초당 3번 넘게 깜빡이는 효과는 반투명 · 고정으로
   const opt = { calm: false };
   let lastPlayers = new Map(), lastMobs = new Map(), meId = null;
@@ -284,7 +284,7 @@ export function createRenderer(canvas) {
       if (t === T.WATER) waters.push([x, y]); else if (t === T.PORTAL) portals.push([x, y]);
     }
     fx.shots = []; fx.spores = []; fx.parts = []; fx.nums = []; fx.drops.clear(); fx.flies = []; fx.rings = []; fx.pops = []; fx.pillars = [];
-    flash.clear(); recoil.clear(); aim.clear(); stop.clear();
+    flash.clear(); recoil.clear(); aim.clear(); stop.clear(); alert.clear();
   }
 
   const burst = (x, y, n, colors, sp = 60, life = 0.4, up = 0) => {
@@ -301,6 +301,7 @@ export function createRenderer(canvas) {
         fx.shots.push({ x: e.x, y: e.y, vx: e.vx, vy: e.vy, life: 0.62, mine: e.mine });
         recoil.set(e.who, 0.07); aim.set(e.who, { fx: e.vx >= 0 ? 1 : -1, t: 0.3 });
         break;
+      case 'wind': alert.set(e.mob, 0.45); break;
       case 'spore': fx.spores.push({ x: e.x, y: e.y, vx: e.vx, vy: e.vy, life: 2.4 }); break;
       case 'hit': {
         const m = lastMobs.get(e.mob);
@@ -447,6 +448,7 @@ export function createRenderer(canvas) {
     for (const [k, v] of flash) { if (v - dt <= 0) flash.delete(k); else flash.set(k, v - dt); }
     for (const [k, v] of recoil) { if (v - dt <= 0) recoil.delete(k); else recoil.set(k, v - dt); }
     for (const [k, v] of aim) { if (v.t - dt <= 0) aim.delete(k); else v.t -= dt; }
+    for (const [k, v] of alert) { if (v - dt <= 0) alert.delete(k); else alert.set(k, v - dt); }
     for (const [k, v] of stop) { if (v.t - dt <= 0) stop.delete(k); else v.t -= dt; }
     for (const e of ents) {
       const o = e.o;
@@ -487,6 +489,8 @@ export function createRenderer(canvas) {
         const s = mobSprite(o.type, o.fx, pose, phase, fl);
         ctx.drawImage(s, sX - s.ax + jx, sY - s.ay);
         const max = MOBS[o.type]?.hp || 1;
+        const al = alert.get(o.id);
+        if (al) drawNum(ctx, '!', sX, sY - 34 - (al > 0.35 && !opt.calm ? Math.round((al - 0.35) * 30) : 0), PAL.lemon, 2);
         if (o.hp < max) {
           ctx.fillStyle = PAL.ink; ctx.fillRect(sX - 8, sY - 22, 16, 3);
           ctx.fillStyle = PAL.tomato; ctx.fillRect(sX - 7, sY - 21, Math.max(1, Math.round(14 * o.hp / max)), 1);
