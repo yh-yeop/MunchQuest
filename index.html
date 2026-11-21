@@ -26,14 +26,14 @@
       <b id="room"></b>
       <span id="people"></span>
       <button type="button" id="copy">초대 링크 복사</button>
-      <button type="button" id="snd" title="M">소리 켬</button>
-      <button type="button" id="btnLeave" title="Esc">나가기</button>
+      <button type="button" id="snd" title="M" aria-keyshortcuts="M">소리 켬</button>
+      <button type="button" id="btnLeave" title="Esc" aria-keyshortcuts="Escape">나가기</button>
     </div>
     <p class="net" id="net"></p>
     <pre class="dbg" id="dbg" hidden></pre>
     <p class="keys" id="keys">이동 WASD · 공격 J/Space (자동 조준) · 구르기 K/Shift · 소리 M · 나가기 Esc</p>
-    <div class="pad" aria-hidden="true">
-      <button type="button" id="tRoll" class="roll">구르기</button>
+    <div class="pad">
+      <button type="button" id="tRoll" class="roll" aria-label="구르기 (누르는 동안 무적)">구르기</button>
       <button type="button" id="tAtk" class="atk">공격</button>
     </div>
   </div>
@@ -56,7 +56,7 @@
       </form>
       <button type="button" id="btnSolo" class="ghost">혼자 테스트 (봇 3 · 지연 150ms)</button>
       <button type="button" id="btnSet" class="ghost">설정 (키 바꾸기 · 화면 흔들림)</button>
-      <p class="msg" id="msg" hidden></p>
+      <p class="msg" id="msg" hidden role="status" aria-live="polite"></p>
     </div>
     <div class="box" id="settings" hidden role="dialog" aria-labelledby="setTitle">
       <h1 id="setTitle">설정</h1>
