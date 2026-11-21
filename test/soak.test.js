@@ -173,3 +173,37 @@ test('몬스터는 바뀐 것만 보내도, 지연 150ms로 1분 사냥한 뒤 �
   assert.ok(sent > 500 && full > 0 && full < sent / 10, `${sent} 중 전부 ${full}`);
   assert.ok(rows / sent < alive.length, `바뀐 것만 보냄 (스냅샷당 ${(rows / sent).toFixed(1)}줄 / 몬스터 ${alive.length})`);
 });
+
+// ---------- 혼자 테스트의 사냥 봇 그대로 ----------
+import { Bot } from '../src/bot.js';
+
+test('사냥 봇 8명이 지연 150ms로 5분 동안: 모두 초원에 가서 레벨이 오르고, 되맞춤 0회, 오래 끼어 있는 봇이 없다', { timeout: 60000 }, () => {
+  const clock = fakeClock();
+  const server = new Srv({ rand: seeded(41), now: clock.now });
+  const bots = Array.from({ length: 8 }, (_, k) => new Bot(server, 150, k + 1, { schedule: clock.setTimeout, now: clock.now, rand: seeded(50 + k) }));
+  const still = new Map(bots.map((b) => [b, { x: 0, y: 0, t: 0, worst: 0 }]));
+  let tickAcc = 0, inAcc = 0, flushAcc = 0;
+  for (let i = 0; i < 300000; i++) {
+    clock.advance(1);
+    tickAcc++; inAcc++; flushAcc++;
+    if (tickAcc >= 50) { tickAcc -= 50; server.update(); }
+    if (inAcc >= DT * 1000) { inAcc -= DT * 1000; for (const b of bots) b.step(); }
+    if (flushAcc >= 50) { flushAcc -= 50; for (const b of bots) b.client.flush(); }
+    if (i % 500 === 0) for (const b of bots) {
+      // 0.5초마다: 살아 있는데 거의 안 움직였으면 끼어 있는 시간을 센다
+      const me = b.client.me, s = still.get(b);
+      if (!me || me.down) { s.t = 0; continue; }
+      const moved = Math.hypot(me.x - s.x, me.y - s.y);
+      s.t = moved < 2 ? s.t + 0.5 : 0; s.worst = Math.max(s.worst, s.t);
+      s.x = me.x; s.y = me.y;
+    }
+  }
+  for (const b of bots) {
+    const p = server.players.get(b.client.id), s = still.get(b);
+    assert.equal(b.client.corrections, 0, `${p.name} 되맞춤`);
+    assert.ok(p.lvl >= 3, `${p.name} Lv${p.lvl}`);
+    assert.ok(s.worst < 5, `${p.name} 이 ${s.worst}초 끼어 있음`);
+    assert.ok(b.client.events.length <= 400);
+  }
+  for (const z of server.zones.values()) assert.ok(z.bullets.length < 40);
+});
