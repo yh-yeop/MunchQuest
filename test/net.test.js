@@ -146,3 +146,21 @@ test('서버는 이상한 입력을 걸러낸다 (범위 밖 값 · 밀린 입�
   server.update();
   assert.ok(p.x - x1 <= 8 * 72 / 60 + 1e-9, '한 틱에 입력 8개까지만');
 });
+
+test('가짜 지연을 걸어도 꽉 찬 채널이면 끊김보다 꽉 참 알림이 먼저 온다', () => {
+  const clock = fakeClock();
+  const server = new Server({ maxPlayers: 1 });
+  const join = (name) => {
+    const [a, b] = localPair({ schedule: (fn) => fn() });   // 실제 소켓처럼 full 이 닫기보다 먼저 나간다
+    server.connect(a);
+    const events = [];
+    const conn = withLatency(b, () => 150, { schedule: clock.setTimeout, now: clock.now, jitter: 0 });
+    new Client(conn, { name, now: clock.now, onEvent: (e) => events.push(e) });
+    return events;
+  };
+  join('A');
+  clock.advance(300);
+  const B = join('B');
+  clock.advance(300);
+  assert.deepEqual(B.filter((e) => e === 'full' || e === 'closed'), ['full', 'closed']);
+});

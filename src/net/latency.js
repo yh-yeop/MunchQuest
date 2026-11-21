@@ -2,6 +2,9 @@
 // 방향마다 FIFO 대기열 하나를 타이머 하나로 빼내서 순서를 절대 바꾸지 않는다 — 메시지마다
 // setTimeout 을 걸면 브라우저가 대기 시간을 ms 단위로 반올림해서 뒤에 보낸 것이 먼저 도착할 수 있다
 // (서버는 순서가 뒤집힌 입력을 중복으로 보고 버림). 실제로 쓰는 채널도 순서를 보장한다.
+// 닫기 알림은 대기열을 거치지 않는다. 바로 뒤에 닫기가 오는 알림(꽉 참)도 같이 건너뛴다 —
+// 안 그러면 닫기가 먼저 도착해 "채널이 꽉 찼어요" 대신 "연결이 끊겼어요"가 나온다.
+const URGENT = (m) => !!m && m.t === 'full';
 export function withLatency(conn, getRttMs, {
   schedule = (fn, ms) => setTimeout(fn, ms),
   now = () => performance.now(),
@@ -15,7 +18,7 @@ export function withLatency(conn, getRttMs, {
   const handlers = [];
   const inbound = fifo((m) => { for (const h of handlers) h(m); });
   const outbound = fifo((m) => conn.send(m));
-  conn.onMessage((m) => inbound(m, delay()));
+  conn.onMessage((m) => { if (URGENT(m)) { for (const h of handlers) h(m); } else inbound(m, delay()); });
   return {
     send(m) { outbound(m, delay()); },
     onMessage(h) { handlers.push(h); },
